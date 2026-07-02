@@ -134,12 +134,20 @@ def download_dvol(currency: str) -> pl.DataFrame:
 
 WIKI_PAGES = ["Bitcoin", "Ethereum", "Cryptocurrency"]
 
+# Wikimedia's API policy requires a User-Agent with a project URL and contact;
+# generic UAs get 403.
+WIKI_UA = (
+    "CryptoAcademyBot/3.0 "
+    "(https://github.com/ianfernandezmma-ux/cryptoacademy-v3; lucia@marzo.eus) "
+    "python-httpx"
+)
+
 
 def download_wiki_pageviews() -> pl.DataFrame:
     """Daily Wikipedia pageviews (immutable — the cleanest attention proxy)."""
     frames = []
     end = datetime.now(UTC).strftime("%Y%m%d")
-    with httpx.Client(timeout=60.0, headers={"User-Agent": config.USER_AGENT}) as client:
+    with httpx.Client(timeout=60.0, headers={"User-Agent": WIKI_UA}) as client:
         for page in WIKI_PAGES:
             url = (
                 "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
