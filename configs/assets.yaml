@@ -1,0 +1,13 @@
+# Asset universe. One code path for all assets: everything downstream
+# (data ingestion, features, labels, models) iterates over this file.
+assets:
+  BTC:
+    spot_symbol: BTCUSDT
+    perp_symbol: BTCUSDT
+    coinmetrics_id: btc
+    keywords: [bitcoin, btc]
+  ETH:
+    spot_symbol: ETHUSDT
+    perp_symbol: ETHUSDT
+    coinmetrics_id: eth
+    keywords: [ethereum, eth, ether]

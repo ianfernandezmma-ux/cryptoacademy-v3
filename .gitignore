@@ -1,0 +1,23 @@
+# Secrets — never committed
+.env
+
+# Data (large, regenerable or continuously growing)
+data/
+logs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+
+# ML artifacts (tracked via MLflow, not git)
+mlruns/
+mlflow.db
+
+# OS/editor
+Thumbs.db
+.DS_Store

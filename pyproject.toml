@@ -1,0 +1,50 @@
+[project]
+name = "cryptoacademy"
+version = "3.0.0"
+description = "CryptoAcademy v3 - ML trading signals for BTC/ETH with point-in-time news and local AI"
+requires-python = ">=3.12"
+dependencies = [
+    "polars>=1.17",
+    "duckdb>=1.1",
+    "httpx>=0.27",
+    "feedparser>=6.0",
+    "trafilatura>=2.0",
+    "pyyaml>=6.0",
+    "typer>=0.15",
+    "python-dotenv>=1.0",
+    "tenacity>=9.0",
+    "pydantic>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "types-PyYAML",
+]
+
+[project.scripts]
+cryptoacademy = "cryptoacademy.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cryptoacademy"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
