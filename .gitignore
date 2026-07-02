@@ -1,9 +1,10 @@
 # Secrets — never committed
 .env
 
-# Data (large, regenerable or continuously growing)
-data/
-logs/
+# Data (large, regenerable or continuously growing) — root-anchored so that
+# src/cryptoacademy/data/ (source code!) is NOT ignored
+/data/
+/logs/
 
 # Python
 .venv/

@@ -80,9 +80,9 @@ C:\CryptoAcademy\
 - **Cross-asset:** DXY, SPX, oro, 10Y, VIX, M2 (yfinance/FRED) — con lag conservador de publicación (el CPI sale a las 8:30 ET, no a medianoche).
 - **On-chain:** Coin Metrics Community API (la mejor fuente gratuita programática), Blockchain.com, DeFiLlama. Glassnode requiere ~$79/mes para API → descartado.
 - **Fear & Greed:** `api.alternative.me/fng/?limit=0` (histórico completo desde 2018 en una llamada).
-- **Backfill de noticias 2020-2026** (reemplaza el corpus CryptoPanic — su API gratuita murió en abril 2026 y no permite backfill):
-  - Primario: **CoinDesk Data API** (`news/v1/article/list` paginando hacia atrás con `to_ts`) — su `published_on` es timestamp de ingesta del agregador, mejor aún para PIT que la fecha del publisher.
-  - Amplitud: **GDELT GKG 2.0** (archivos crudos de 15 min desde 2015 o BigQuery) — el archivo de 15 min donde aparece una URL es en sí una cota point-in-time.
+- **Backfill de noticias 2020-2026** (CryptoPanic mató su API gratuita en abril 2026; CoinDesk Data mató su tier gratuito el 21-mayo-2026 — verificado empíricamente, el legacy min-api devuelve 401):
+  - Primario: **GDELT GKG 2.0** (archivos crudos de 15 min desde 2015, gratuito, sin registro) — el archivo de 15 min donde aparece una URL es en sí una cota point-in-time.
+  - Complemento: datasets Kaggle de crypto news auditados contra Wayback (embargo de día completo para filas date-only).
   - Verificación: Wayback Machine CDX sobre una muestra del 1% por fuente.
 - **Esquema bitemporal append-only:** `articles(url_hash, source, title, body_hash, published_at_utc, first_seen_at_utc, backfilled, revision_no)`. Regla de features: `usable_at = max(published_at, first_seen_at) + buffer` (15-60 min live, **2-6h para filas backfilled**). Nunca bucketing por fecha de calendario; siempre cutoff exacto sobre epoch UTC.
 - **Test anti-leakage en CI:** inyectar artículo sintético con timestamp T−1s y T+1s y asertar que solo el primero entra en las features de la decisión T.
