@@ -67,12 +67,14 @@ def download_metrics(asset: str, symbol: str) -> pl.DataFrame:
                         pl.col("create_time")
                         .str.to_datetime("%Y-%m-%d %H:%M:%S", strict=False)
                         .dt.replace_time_zone("UTC"),
-                        pl.col("sum_open_interest").cast(pl.Float64),
-                        pl.col("sum_open_interest_value").cast(pl.Float64),
-                        pl.col("count_toptrader_long_short_ratio").cast(pl.Float64),
-                        pl.col("sum_toptrader_long_short_ratio").cast(pl.Float64),
-                        pl.col("count_long_short_ratio").cast(pl.Float64),
-                        pl.col("sum_taker_long_short_vol_ratio").cast(pl.Float64),
+                        # strict=False: early 2020 files have blank cells in the
+                        # ratio columns -> null (honest missingness, not zeros)
+                        pl.col("sum_open_interest").cast(pl.Float64, strict=False),
+                        pl.col("sum_open_interest_value").cast(pl.Float64, strict=False),
+                        pl.col("count_toptrader_long_short_ratio").cast(pl.Float64, strict=False),
+                        pl.col("sum_toptrader_long_short_ratio").cast(pl.Float64, strict=False),
+                        pl.col("count_long_short_ratio").cast(pl.Float64, strict=False),
+                        pl.col("sum_taker_long_short_vol_ratio").cast(pl.Float64, strict=False),
                     ).drop_nulls(subset=["create_time"])
                     frames.append(df)
             day += timedelta(days=1)
