@@ -7,8 +7,13 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+import truststore
 import yaml
 from dotenv import load_dotenv
+
+# Use the Windows certificate store for TLS: this machine sits behind a
+# TLS-intercepting proxy/antivirus whose root CA is not in certifi's bundle.
+truststore.inject_into_ssl()
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
