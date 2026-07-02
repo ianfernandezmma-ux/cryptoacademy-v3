@@ -100,6 +100,28 @@ def backfill_prices(start: str = "2020-01", interval: str = "1h") -> None:
 
 
 @app.command()
+def backfill_altdata() -> None:
+    """Binance metrics (OI/long-short/taker, 5-min since 2020-09), Deribit DVOL,
+    Wikipedia pageviews, CFTC COT."""
+    _setup_logging("backfill")
+    from cryptoacademy.data.altdata import (
+        download_cot,
+        download_dvol,
+        download_metrics,
+        download_wiki_pageviews,
+    )
+
+    log = logging.getLogger("altdata")
+    download_wiki_pageviews()
+    download_cot()
+    for currency in ("BTC", "ETH"):
+        download_dvol(currency)
+    for asset, meta in config.load_assets().items():
+        log.info("downloading %s metrics dumps (this takes a while)...", asset)
+        download_metrics(asset, meta["perp_symbol"])
+
+
+@app.command()
 def backfill_fng() -> None:
     """Download full Fear & Greed history (2018 -> today)."""
     _setup_logging("backfill")
@@ -135,6 +157,10 @@ def status() -> None:
         ("funding", "funding/*/*.parquet"),
         ("open_interest", "open_interest/*/*.parquet"),
         ("sentiment", "sentiment/*.parquet"),
+        ("metrics", "metrics/*/*.parquet"),
+        ("options", "options/*.parquet"),
+        ("attention", "attention/*.parquet"),
+        ("positioning", "positioning/*.parquet"),
     ]:
         files = sorted(config.RAW_DIR.glob(pattern))
         for f in files:
