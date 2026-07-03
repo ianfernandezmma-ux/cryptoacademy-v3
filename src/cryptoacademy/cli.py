@@ -154,6 +154,24 @@ def backfill_gdelt(max_days: int = 30) -> None:
 
 
 @app.command()
+def score_news(limit: int = 500) -> None:
+    """Score pending articles with the local LLM (dedup + structured extraction)."""
+    _setup_logging("scoring")
+    from cryptoacademy.news.scoring import score_pending
+    from cryptoacademy.notify import telegram
+
+    log = logging.getLogger("score_news")
+    try:
+        result = score_pending(limit=limit)
+        log.info("scoring run: %s", result)
+        typer.echo(str(result))
+    except Exception as exc:
+        log.exception("scoring failed")
+        telegram.send(f"🔴 CryptoAcademy scoring crashed: {exc}")
+        raise
+
+
+@app.command()
 def backfill_fng() -> None:
     """Download full Fear & Greed history (2018 -> today)."""
     _setup_logging("backfill")
