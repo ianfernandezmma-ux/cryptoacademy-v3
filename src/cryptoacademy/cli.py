@@ -122,6 +122,38 @@ def backfill_altdata() -> None:
 
 
 @app.command()
+def backfill_gdelt(max_days: int = 30) -> None:
+    """Harvest GDELT GKG history (resumable; scheduled hourly until complete).
+
+    Telegram progress notes at ~10% milestones so a multi-day backfill is
+    observable without hourly spam.
+    """
+    _setup_logging("gdelt")
+    from cryptoacademy.news.gdelt import harvest
+    from cryptoacademy.notify import telegram
+
+    log = logging.getLogger("gdelt")
+    try:
+        result = harvest(max_days=max_days)
+    except Exception as exc:
+        log.exception("gdelt harvest failed")
+        telegram.send(f"🔴 GDELT harvester crashed: {exc}")
+        raise
+    if result["processed"] and result.get("done_pct") is not None:
+        prev_pct = result["done_pct"] - 100 * result["processed"] / max(
+            1, result["processed"] + result["remaining"]
+        )
+        if result["remaining"] == 0:
+            telegram.send("✅ GDELT backfill COMPLETO: historia 2020→hoy lista.")
+        elif int(result["done_pct"] // 10) > int(max(prev_pct, 0) // 10):
+            telegram.send(
+                f"📰 GDELT backfill: {result['done_pct']}% "
+                f"({result['remaining']} días pendientes)"
+            )
+    typer.echo(str(result))
+
+
+@app.command()
 def backfill_fng() -> None:
     """Download full Fear & Greed history (2018 -> today)."""
     _setup_logging("backfill")
