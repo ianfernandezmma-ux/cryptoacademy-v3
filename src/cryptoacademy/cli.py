@@ -197,6 +197,18 @@ def snapshot_options_chain() -> None:
 
 
 @app.command()
+def generate_labels() -> None:
+    """CUSUM + triple-barrier labels on real data, both horizons (24h, 96h)."""
+    _setup_logging("labels")
+    import json
+
+    from cryptoacademy.labels.generate import generate_all
+
+    summary = generate_all()
+    typer.echo(json.dumps(summary, indent=2))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")
