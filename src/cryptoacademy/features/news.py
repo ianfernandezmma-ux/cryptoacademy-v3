@@ -49,7 +49,7 @@ def _explode_to_decision_days(df: pl.DataFrame, usable_col: str) -> pl.DataFrame
         .filter(pl.col("decision_day").list.len() > 0)
         .explode("decision_day")
         .with_columns(
-            ((pl.col("decision_day") - pl.col(usable_col)).dt.total_minutes() / 60.0).alias(
+            ((pl.col("decision_day") - pl.col(usable_col)).dt.total_seconds() / 3600.0).alias(
                 "age_h"
             )
         )
@@ -69,6 +69,8 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
 
     import duckdb
 
+    if not config.NEWS_DB_PATH.exists():
+        return pl.DataFrame()
     conn = None
     for attempt in range(6):  # collector holds the write lock ~5 min per run
         try:
@@ -83,9 +85,14 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
         """
         SELECT a.published_at_utc, a.first_seen_at_utc, a.backfilled,
                s.sentiment, s.confidence, s.event_type, s.severity,
-               s.is_price_report, s.duplicate_of IS NOT NULL AS is_dup
+               s.is_price_report, s.duplicate_of IS NOT NULL AS is_dup,
+               s.scored_at_utc
         FROM articles a JOIN article_scores s USING (url_hash, revision_no)
-        WHERE s.model != 'dedup' OR s.duplicate_of IS NOT NULL
+        -- one row per article: the latest scored revision (audit M-5;
+        -- edited breaking news must not count twice)
+        QUALIFY row_number() OVER (
+            PARTITION BY a.url_hash ORDER BY a.revision_no DESC
+        ) = 1
         """
     ).pl()
     conn.close()
@@ -101,7 +108,14 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
             ),
             return_dtype=pl.Datetime(time_zone="UTC"),
         )
-        .alias("usable_at")
+        .alias("pit_usable_at")
+    )
+    # a score is not knowable before the LLM produced it (audit M-4)
+    rows = rows.with_columns(
+        pl.max_horizontal(
+            pl.col("pit_usable_at"),
+            pl.col("scored_at_utc").dt.replace_time_zone("UTC") + pl.duration(minutes=5),
+        ).alias("usable_at")
     )
     e = _explode_to_decision_days(rows, "usable_at")
     scored = e.filter(~pl.col("is_dup"))
@@ -206,7 +220,19 @@ def gdelt_era_daily(asset: str) -> pl.DataFrame:
 def abnormal_attention(daily: pl.DataFrame, count_col: str = "news_count_24h") -> pl.DataFrame:
     """Da-Engelberg-Gao abnormal attention with a same-weekday baseline:
     log(1+N_t) - log(1+median of same weekday over trailing 8 weeks).
-    Computed within-era by the caller; strictly causal (shift 1 week)."""
+    Computed within-era by the caller; strictly causal (shift 1 week).
+
+    The calendar is densified first: zero-news days must exist as rows with
+    count 0 — they are legitimate 'abnormally quiet' readings, and a sparse
+    frame would let the same-weekday window reach arbitrarily far back
+    (audit M-6)."""
+    lo, hi = daily["decision_day"].min(), daily["decision_day"].max()
+    calendar = pl.DataFrame().with_columns(
+        pl.datetime_range(lo, hi, interval="1d", time_zone="UTC").alias("decision_day")
+    )
+    daily = calendar.join(daily, on="decision_day", how="left").with_columns(
+        pl.col(count_col).fill_null(0)
+    )
     return (
         daily.sort("decision_day")
         .with_columns(pl.col("decision_day").dt.weekday().alias("_dow"))

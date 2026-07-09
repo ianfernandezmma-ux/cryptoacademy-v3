@@ -82,18 +82,76 @@ def download_coinmetrics(assets: list[str] | None = None) -> pl.DataFrame:
 # ------------------------------------------------------------------ FRED/ALFRED
 
 FRED_URL = "https://api.stlouisfed.org/fred/series/observations"
-# series -> publication lag rule (hours added to the reference date, verified
-# against the official release schedules). M2SL is handled via ALFRED vintages.
-FRED_DAILY_SERIES: dict[str, int] = {
-    "RRPONTSYD": 22,            # same-day ~18:00 ET -> 22:00 UTC
-    "DFII10": 24 + 21,          # next business day 16:15 ET
-    "T10YIE": 24 + 21,
-    "BAMLH0A0HYM2": 24 + 17,
-    "VIXCLS": 24 + 17,
-    "WALCL": 24 * 8 + 21,       # Wed-dated week released Thu 16:30 ET (conservative)
-    "WTREGEN": 24 * 8 + 21,
-    "DTWEXBGS": 24 * 8 + 21,    # following Monday 16:15 ET (3-8d) -> conservative 8d
+
+# Publication rules per official release schedules. Times are EASTERN and get
+# converted to UTC properly (a fixed UTC offset would drift 1h every winter),
+# and "next business day" respects weekends + US federal holidays: a Friday
+# H.15 print is knowable Monday evening, not Saturday (audit finding C-1).
+# M2SL is handled separately via ALFRED first-print vintages.
+FRED_RULES: dict[str, tuple[int, str]] = {
+    # series: (business days after reference date, release time ET "HH:MM")
+    "RRPONTSYD": (0, "18:00"),      # NY Fed posts same afternoon ~13:15 ET
+    "DFII10": (1, "16:15"),         # H.15: next business day 16:15 ET
+    "T10YIE": (1, "16:15"),
+    "BAMLH0A0HYM2": (1, "12:00"),   # ICE BofA via FRED next business morning
+    "VIXCLS": (1, "12:00"),
+    "WALCL": (1, "16:30"),          # Wed-dated H.4.1 released Thursday 16:30 ET
+    "WTREGEN": (1, "16:30"),
+    "DTWEXBGS": (6, "16:15"),       # H.10: following Monday -> ~4-6 busdays worst case
 }
+
+
+def _us_federal_holidays(years: range) -> list[str]:
+    """Fixed + nth-weekday US federal holidays, observed-shifted, as ISO dates."""
+    import datetime as dt
+
+    out = []
+    for y in years:
+        fixed = [(1, 1), (6, 19), (7, 4), (11, 11), (12, 25)]
+        for m, d in fixed:
+            day = dt.date(y, m, d)
+            if day.weekday() == 5:
+                day -= dt.timedelta(days=1)
+            elif day.weekday() == 6:
+                day += dt.timedelta(days=1)
+            out.append(day.isoformat())
+
+        def nth_weekday(month: int, weekday: int, n: int, year: int = y) -> dt.date:
+            d0 = dt.date(year, month, 1)
+            offset = (weekday - d0.weekday()) % 7
+            return d0 + dt.timedelta(days=offset + 7 * (n - 1))
+
+        out.append(nth_weekday(1, 0, 3).isoformat())    # MLK: 3rd Mon Jan
+        out.append(nth_weekday(2, 0, 3).isoformat())    # Presidents: 3rd Mon Feb
+        last_may = dt.date(y, 5, 31)
+        last_may -= dt.timedelta(days=(last_may.weekday() - 0) % 7)
+        out.append(last_may.isoformat())                # Memorial: last Mon May
+        out.append(nth_weekday(9, 0, 1).isoformat())    # Labor: 1st Mon Sep
+        out.append(nth_weekday(10, 0, 2).isoformat())   # Columbus: 2nd Mon Oct
+        out.append(nth_weekday(11, 3, 4).isoformat())   # Thanksgiving: 4th Thu Nov
+    return out
+
+
+_HOLIDAYS = _us_federal_holidays(range(2019, 2031))
+
+
+def fred_published_at(ref_date: datetime, busdays: int, et_time: str) -> datetime:
+    """Knowledge time for a FRED observation: reference date + N US business
+    days, at the release time in America/New_York, converted to UTC."""
+    from zoneinfo import ZoneInfo
+
+    import numpy as np
+
+    d = np.datetime64(ref_date.strftime("%Y-%m-%d"), "D")
+    if busdays == 0:
+        release_day = np.busday_offset(d, 0, roll="forward", holidays=_HOLIDAYS)
+    else:
+        release_day = np.busday_offset(d, busdays, roll="forward", holidays=_HOLIDAYS)
+    hh, mm = (int(x) for x in et_time.split(":"))
+    et = datetime.strptime(str(release_day), "%Y-%m-%d").replace(
+        hour=hh, minute=mm, tzinfo=ZoneInfo("America/New_York")
+    )
+    return et.astimezone(UTC)
 
 
 def download_fred() -> pl.DataFrame:
@@ -102,7 +160,7 @@ def download_fred() -> pl.DataFrame:
         raise RuntimeError("FRED_API_KEY missing in .env")
     frames = []
     with httpx.Client(timeout=60.0) as client:
-        for series, lag_h in FRED_DAILY_SERIES.items():
+        for series, (busdays, et_time) in FRED_RULES.items():
             resp = client.get(
                 FRED_URL,
                 params={
@@ -112,19 +170,21 @@ def download_fred() -> pl.DataFrame:
             )
             resp.raise_for_status()
             obs = resp.json()["observations"]
+            dates = [datetime.strptime(o["date"], "%Y-%m-%d") for o in obs]
             frames.append(
                 pl.DataFrame(
                     {
                         "series": series,
-                        "date": [o["date"] for o in obs],
+                        "date": dates,
                         "value": [o["value"] for o in obs],
+                        "published_at_utc": [
+                            fred_published_at(d, busdays, et_time) for d in dates
+                        ],
                     }
                 ).with_columns(
-                    pl.col("date").str.to_datetime().dt.replace_time_zone("UTC"),
+                    pl.col("date").dt.replace_time_zone("UTC"),
                     pl.col("value").cast(pl.Float64, strict=False),  # "." -> null
-                    (
-                        pl.col("date").str.to_datetime() + pl.duration(hours=lag_h)
-                    ).dt.replace_time_zone("UTC").alias("published_at_utc"),
+                    pl.col("published_at_utc").dt.convert_time_zone("UTC"),
                 )
             )
         # M2SL as ORIGINALLY PUBLISHED (ALFRED first-print vintages)
@@ -288,7 +348,15 @@ def download_etf_flows() -> pl.DataFrame:
     dest = config.RAW_DIR / "etf_flows"
     dest.mkdir(parents=True, exist_ok=True)
     df.write_parquet(dest / "farside.parquet")
-    log.info("etf flows: %d rows", len(df))
+    # Farside restates cells in place for ~48h; keep append-only vintages so
+    # the live era has true first-print flows (audit M-8). Pre-archive history
+    # is revised-values era by construction — documented limitation.
+    snap = df.with_columns(pl.lit(datetime.now(UTC)).alias("snapped_at_utc"))
+    vpath = dest / "farside_vintages.parquet"
+    if vpath.exists():
+        snap = pl.concat([pl.read_parquet(vpath), snap], how="diagonal_relaxed")
+    snap.write_parquet(vpath)
+    log.info("etf flows: %d rows (+vintage snapshot)", len(df))
     return df
 
 

@@ -99,23 +99,31 @@ def build_matrix(asset: str) -> pl.DataFrame:
             (pl.col("iv_30d") / (365**0.5) - pl.col("vol_ewma_21d")).alias("vrp_daily")
         )
 
-    # published sources (as-of on knowledge time)
-    onchain = pl.read_parquet(config.RAW_DIR / "onchain" / "coinmetrics.parquet").filter(
-        pl.col("asset") == meta["coinmetrics_id"]
-    )
-    oc_cols = ["AdrActCnt", "TxCnt", "HashRate", "CapMrktCurUSD", "CapMVRVCur"]
-    spine = _asof_published(spine, onchain, oc_cols, "oc", STALENESS_CAP_H["onchain"])
-
-    macro = pl.read_parquet(config.RAW_DIR / "macro" / "fred.parquet")
-    for series in macro["series"].unique().to_list():
-        sub = macro.filter(pl.col("series") == series)
-        spine = _asof_published(
-            spine, sub, ["value"], f"macro_{series.lower()}", STALENESS_CAP_H["macro"]
+    # published sources (as-of on knowledge time); each optional so the matrix
+    # can be built on partial data (tests, fresh clones)
+    onchain_path = config.RAW_DIR / "onchain" / "coinmetrics.parquet"
+    if onchain_path.exists():
+        onchain = pl.read_parquet(onchain_path).filter(
+            pl.col("asset") == meta["coinmetrics_id"]
         )
+        oc_cols = ["AdrActCnt", "TxCnt", "HashRate", "CapMrktCurUSD", "CapMVRVCur"]
+        spine = _asof_published(spine, onchain, oc_cols, "oc", STALENESS_CAP_H["onchain"])
 
-    stab = pl.read_parquet(config.RAW_DIR / "stablecoins" / "stablecoins.parquet")
-    total = stab.filter(pl.col("series") == "total_usd")
-    spine = _asof_published(spine, total, ["value"], "stable_total", STALENESS_CAP_H["stablecoins"])
+    macro_path = config.RAW_DIR / "macro" / "fred.parquet"
+    if macro_path.exists():
+        macro = pl.read_parquet(macro_path)
+        for series in macro["series"].unique().to_list():
+            sub = macro.filter(pl.col("series") == series)
+            spine = _asof_published(
+                spine, sub, ["value"], f"macro_{series.lower()}", STALENESS_CAP_H["macro"]
+            )
+
+    stab_path = config.RAW_DIR / "stablecoins" / "stablecoins.parquet"
+    if stab_path.exists():
+        total = pl.read_parquet(stab_path).filter(pl.col("series") == "total_usd")
+        spine = _asof_published(
+            spine, total, ["value"], "stable_total", STALENESS_CAP_H["stablecoins"]
+        )
 
     etf_path = config.RAW_DIR / "etf_flows" / "farside.parquet"
     if etf_path.exists():
@@ -127,11 +135,13 @@ def build_matrix(asset: str) -> pl.DataFrame:
         )
         spine = _asof_published(spine, etf, ["flow_total_musd"], "etf", STALENESS_CAP_H["etf"])
 
-    fng = pl.read_parquet(config.RAW_DIR / "sentiment" / "fear_greed.parquet").with_columns(
-        # index for day D posts ~00:00 UTC of D; usable next decision (D+1)
-        (pl.col("date") + pl.duration(hours=1)).alias("published_at_utc")
-    )
-    spine = _asof_published(spine, fng, ["fng_value"], "fng", 72)
+    fng_path = config.RAW_DIR / "sentiment" / "fear_greed.parquet"
+    if fng_path.exists():
+        fng = pl.read_parquet(fng_path).with_columns(
+            # index for day D posts ~00:00 UTC of D; usable next decision (D+1)
+            (pl.col("date") + pl.duration(hours=1)).alias("published_at_utc")
+        )
+        spine = _asof_published(spine, fng, ["fng_value"], "fng", 72)
 
     # news (both eras), already decision-day keyed
     news_frames = [df for df in (gdelt_era_daily(asset), llm_era_daily(asset)) if not df.is_empty()]

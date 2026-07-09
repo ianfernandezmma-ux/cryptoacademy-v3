@@ -89,5 +89,10 @@ def price_features() -> list[pl.Expr]:
 def add_price_features(daily: pl.DataFrame) -> pl.DataFrame:
     """daily: sorted single-asset daily bars. Adds vol_ewma_21d first because
     other expressions reference it as a column."""
+    if "asset" in daily.columns and daily["asset"].n_unique() > 1:
+        raise ValueError(
+            "add_price_features is single-asset: rolling windows would cross "
+            "asset boundaries on a multi-asset frame"
+        )
     out = daily.sort("date").with_columns(ewma_vol(21))
     return out.with_columns(price_features())

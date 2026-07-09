@@ -24,7 +24,9 @@ def usable_at(
     backfilled: bool,
 ) -> datetime:
     """Earliest decision time at which this row may be used."""
-    base = first_seen_at_utc
+    base = _as_utc(first_seen_at_utc)
+    if published_at_utc is not None:
+        published_at_utc = _as_utc(published_at_utc)
     if published_at_utc is not None and published_at_utc > base:
         # A publisher claim in the future of our sighting is suspicious;
         # be conservative and take the later of the two.

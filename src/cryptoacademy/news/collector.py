@@ -50,7 +50,6 @@ def fetch_body(client: httpx.Client, url: str) -> str | None:
 
 def collect_once(store: NewsStore, feeds: list[dict]) -> dict:
     started = time.monotonic()
-    first_seen = datetime.now(UTC)
     feeds_ok = feeds_failed = new = revisions = 0
 
     with httpx.Client(
@@ -87,7 +86,10 @@ def collect_once(store: NewsStore, feeds: list[dict]) -> dict:
                             title=entry.get("title", ""),
                             body=body or entry.get("summary", "") or "",
                             published_at_utc=parse_entry_time(entry),
-                            first_seen_at_utc=first_seen,
+                            # stamped per article at possession time — stamping
+                            # the run start would claim we saw late-fetched
+                            # articles earlier than we did (audit M-3)
+                            first_seen_at_utc=datetime.now(UTC),
                             backfilled=False,
                         )
                     )

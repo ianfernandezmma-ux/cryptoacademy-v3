@@ -61,6 +61,11 @@ def cusum_events(close: np.ndarray, threshold: np.ndarray) -> np.ndarray:
     logc = np.log(close)
     for t in range(1, len(close)):
         r = logc[t] - logc[t - 1]
+        if np.isnan(r):
+            # data gap: reset accumulators — max(0, nan) is nan and would
+            # otherwise poison the filter permanently (audit M-9)
+            s_pos = s_neg = 0.0
+            continue
         s_pos = max(0.0, s_pos + r)
         s_neg = min(0.0, s_neg + r)
         h = threshold[t]
@@ -110,6 +115,13 @@ def triple_barrier(
         t1_max = t0 + cfg.horizon_bars
         if t1_max >= n:
             continue  # DROP: full window not observed
+        window = slice(t0, t1_max + 1)
+        if not (
+            np.all(np.isfinite(high[window]))
+            and np.all(np.isfinite(low[window]))
+            and np.all(np.isfinite(close[window]))
+        ):
+            continue  # DROP: a gap inside the window would silently mislabel
         s = 1.0 if side is None else float(side[k])
         p0 = close[t0]
         up = p0 * (1 + cfg.pt_mult * trgt) if s > 0 else p0 * (1 + cfg.sl_mult * trgt)
@@ -187,6 +199,13 @@ def sample_weights(
 ) -> pl.DataFrame:
     """AFML Ch.4: return-attribution weights x time-decay on cumulative
     uniqueness. Newest event decays to exactly 1, oldest to `last_weight`."""
+    if events.is_empty():
+        return events.with_columns(
+            pl.Series("uniqueness", [], dtype=pl.Float64),
+            pl.Series("w_attrib", [], dtype=pl.Float64),
+            pl.Series("w_decay", [], dtype=pl.Float64),
+            pl.Series("sample_weight", [], dtype=pl.Float64),
+        )
     n_bars = len(close)
     c = concurrency(events, n_bars)
     logc = np.log(close)
