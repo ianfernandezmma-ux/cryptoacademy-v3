@@ -55,6 +55,7 @@ SCHEMA = {
     "negative": pl.Float64,
     "polarity": pl.Float64,
     "n_themes": pl.Int32,
+    "themes": pl.String,  # semicolon-joined V1 themes (truncated) for bucket counts
 }
 
 
@@ -94,6 +95,7 @@ def _parse_line(line: bytes, file_time: datetime) -> dict | None:
         "negative": neg,
         "polarity": polarity,
         "n_themes": cols[COL_THEMES].count(b";") if cols[COL_THEMES] else 0,
+        "themes": cols[COL_THEMES][:600].decode("utf-8", errors="replace"),
     }
 
 

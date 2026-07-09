@@ -172,6 +172,31 @@ def score_news(limit: int = 500) -> None:
 
 
 @app.command()
+def backfill_macro() -> None:
+    """Coin Metrics on-chain, FRED/ALFRED macro, stablecoins, ETF flows —
+    every row with its published_at_utc knowledge timestamp."""
+    _setup_logging("backfill")
+    from cryptoacademy.data.macro_onchain import backfill_macro_all
+
+    backfill_macro_all()
+
+
+@app.command()
+def snapshot_options_chain() -> None:
+    """Daily Deribit option-chain snapshot (forward archive; no free history)."""
+    _setup_logging("options")
+    from cryptoacademy.data.macro_onchain import snapshot_options
+    from cryptoacademy.notify import telegram
+
+    try:
+        for currency in ("BTC", "ETH"):
+            snapshot_options(currency)
+    except Exception as exc:
+        telegram.send(f"🔴 options snapshot failed: {exc}")
+        raise
+
+
+@app.command()
 def backfill_fng() -> None:
     """Download full Fear & Greed history (2018 -> today)."""
     _setup_logging("backfill")
