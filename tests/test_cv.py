@@ -6,6 +6,7 @@ import random
 from datetime import UTC, datetime, timedelta
 
 import numpy as np
+import pytest
 
 from cryptoacademy.validation.cv import CombinatorialPurgedCV, PurgedKFold, _purge_mask
 
@@ -51,6 +52,8 @@ def test_purge_mask_envelops_test_inside_train_interval():
 
 
 def test_cpcv_split_and_path_counts():
+    from itertools import combinations
+
     cv = CombinatorialPurgedCV(n_groups=6, k_test=2)
     t0, t1 = _events(120)
     splits = list(cv.split(t0, t1))
@@ -58,9 +61,44 @@ def test_cpcv_split_and_path_counts():
     assert cv.n_paths() == 5          # 15*2/6
     pm = cv.path_map()
     assert pm.shape == (6, 5)
-    # every group tested exactly once per path, across distinct splits
-    for path in range(5):
-        assert len(set(pm[:, path])) <= 15
+    combos = list(combinations(range(6), 2))
+    # the assigned split must actually TEST that group
+    for g in range(6):
+        for p in range(5):
+            assert g in combos[pm[g, p]]
+    # every split serves exactly k_test (group, path) cells
+    flat = pm.flatten().tolist()
+    assert all(flat.count(s) == 2 for s in range(15))
+
+
+def test_cpcv_purge_and_embargo_hold_for_nonadjacent_groups():
+    cv = CombinatorialPurgedCV(n_groups=6, k_test=2, embargo=timedelta(days=5))
+    t0, t1 = _events(120)
+    emb = np.timedelta64(5, "D")
+    for train_idx, _test_idx, combo in cv.split(t0, t1):
+        groups = cv.group_bounds(t0)
+        for g in combo:
+            gs, ge = t0[groups[g]].min(), t1[groups[g]].max()
+            for i in train_idx:
+                assert t1[i] < gs or t0[i] > ge          # no overlap w/ group
+                assert not (t0[i] > ge and t0[i] <= ge + emb)  # embargo
+
+
+def test_purged_kfold_heterogeneous_spans_and_uneven_n():
+    rng = np.random.default_rng(9)
+    t0, _ = _events(103)  # does not divide 5
+    spans = rng.integers(2, 200, size=103)
+    t1 = t0 + spans.astype("timedelta64[h]")
+    for train_idx, test_idx in PurgedKFold(n_splits=5).split(t0, t1):
+        ts, te = t0[test_idx].min(), t1[test_idx].max()
+        for i in train_idx:
+            assert t1[i] < ts or t0[i] > te
+
+
+def test_kfold_raises_when_more_splits_than_events():
+    t0, t1 = _events(3)
+    with pytest.raises(ValueError):
+        list(PurgedKFold(n_splits=5).split(t0, t1))
 
 
 def test_every_event_tested_exactly_k_times_in_cpcv():

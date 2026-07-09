@@ -69,3 +69,44 @@ def test_pbo_low_for_one_true_skill():
 
 def test_sharpe_zero_variance_safe():
     assert sharpe(np.zeros(50)) == 0.0
+
+
+def test_expected_max_sharpe_closed_form_n2():
+    """N=2, V=1: E = (1-g)*invPhi(1/2) + g*invPhi(1 - 1/(2e)) = g*invPhi(0.81606)."""
+    from statistics import NormalDist
+
+    expected = 0.5772156649015329 * NormalDist().inv_cdf(1 - 1 / (2 * np.e))
+    assert expected_max_sharpe(2, 1.0) == pytest.approx(expected, abs=1e-12)
+    assert expected == pytest.approx(0.5197, abs=2e-4)  # hand-computed pin
+
+
+def test_pbo_rejects_odd_blocks_and_tiny_t():
+    m = np.random.default_rng(0).normal(size=(100, 5))
+    with pytest.raises(ValueError):
+        pbo_cscv(m, n_blocks=7)
+    with pytest.raises(ValueError):
+        pbo_cscv(m[:20], n_blocks=16)
+
+
+def test_pbo_ties_use_midrank_not_bottom():
+    """All-identical strategies: winner must rank mid, not bottom (PBO ~0.5
+    boundary, not 1.0)."""
+    m = np.tile(np.random.default_rng(4).normal(0, 0.01, size=(200, 1)), (1, 10))
+    result = pbo_cscv(m, n_blocks=4)
+    # midrank of a 10-way tie -> omega = 5.5/11 = 0.5 exactly -> logit 0
+    assert result["mean_logit"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_registry_identity_hash_distinguishes_model_and_horizon(tmp_path, monkeypatch):
+    from cryptoacademy.validation import registry
+
+    monkeypatch.setattr(registry, "REGISTRY_PATH", tmp_path / "trials.jsonl")
+    registry.log_trial("p4", "lgbm", "24h", {}, {"sr": 0.1})
+    registry.log_trial("p4", "lgbm", "96h", {}, {"sr": 0.1})
+    registry.log_trial("p4", "patchtst", "24h", {}, {"sr": 0.1})
+    registry.log_trial("p4", "lgbm", "24h", {}, {"sr": 0.2})  # re-run, same identity
+    assert registry.n_trials(phase="p4") == 3
+    assert registry.n_trials(phase="p4", horizon="24h") == 2
+    # registered-but-crashed trials still count
+    registry.register_trial("p4", "lgbm", "24h", {"lr": 0.1})
+    assert registry.n_trials(phase="p4") == 4

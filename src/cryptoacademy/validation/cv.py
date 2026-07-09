@@ -37,6 +37,8 @@ class PurgedKFold:
     embargo: timedelta = timedelta(days=22)
 
     def split(self, t0: np.ndarray, t1: np.ndarray):
+        if len(t0) < self.n_splits:
+            raise ValueError(f"{len(t0)} events < {self.n_splits} splits")
         order = np.argsort(t0, kind="stable")
         folds = np.array_split(order, self.n_splits)
         emb = np.timedelta64(int(self.embargo.total_seconds()), "s")

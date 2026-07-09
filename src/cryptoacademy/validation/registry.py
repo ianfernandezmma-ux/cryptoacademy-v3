@@ -31,17 +31,62 @@ def _git_rev() -> str:
         return "unknown"
 
 
+def _canonical(obj: Any) -> Any:
+    """JSON-safe, deterministic representation (numpy scalars, sets)."""
+    import numpy as np
+
+    if isinstance(obj, dict):
+        return {str(k): _canonical(v) for k, v in sorted(obj.items(), key=lambda kv: str(kv[0]))}
+    if isinstance(obj, (list, tuple)):
+        return [_canonical(v) for v in obj]
+    if isinstance(obj, (set, frozenset)):
+        return sorted(_canonical(v) for v in obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.bool_):
+        return bool(obj)
+    return obj
+
+
+def _identity_hash(phase: str, model: str, horizon: str, trial_config: dict) -> str:
+    """The FULL selection identity. Hashing only trial_config would collapse
+    distinct model/horizon trials into one and undercount N for DSR (the v2
+    failure mode this module exists to prevent)."""
+    payload = json.dumps(
+        {"phase": phase, "model": model, "horizon": horizon,
+         "config": _canonical(trial_config)},
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()[:12]
+
+
+def register_trial(
+    phase: str, model: str, horizon: str, trial_config: dict[str, Any], notes: str = ""
+) -> str:
+    """Register INTENT before evaluating. Even a crashed trial then counts —
+    the conservative direction for DSR."""
+    return _append(phase, model, horizon, trial_config, metrics=None, notes=notes)
+
+
 def log_trial(
     phase: str,
     model: str,
     horizon: str,
     trial_config: dict[str, Any],
-    metrics: dict[str, Any],
+    metrics: dict[str, Any] | None,
     notes: str = "",
 ) -> str:
-    """Append one trial. Returns the trial id."""
+    """Append one completed trial. Returns the trial id."""
+    return _append(phase, model, horizon, trial_config, metrics, notes)
+
+
+def _append(
+    phase: str, model: str, horizon: str, trial_config: dict[str, Any],
+    metrics: dict[str, Any] | None, notes: str,
+) -> str:
     REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    cfg_json = json.dumps(trial_config, sort_keys=True, default=str)
     row = {
         "trial_id": uuid.uuid4().hex[:12],
         "at_utc": datetime.now(UTC).isoformat(),
@@ -49,9 +94,9 @@ def log_trial(
         "phase": phase,
         "model": model,
         "horizon": horizon,
-        "config_hash": hashlib.sha256(cfg_json.encode()).hexdigest()[:12],
-        "config": trial_config,
-        "metrics": metrics,
+        "config_hash": _identity_hash(phase, model, horizon, trial_config),
+        "config": _canonical(trial_config),
+        "metrics": _canonical(metrics) if metrics is not None else None,
         "notes": notes,
     }
     with open(REGISTRY_PATH, "a", encoding="utf-8") as f:
@@ -59,7 +104,9 @@ def log_trial(
     return row["trial_id"]
 
 
-def load_trials(phase: str | None = None, model: str | None = None) -> list[dict]:
+def load_trials(
+    phase: str | None = None, model: str | None = None, horizon: str | None = None
+) -> list[dict]:
     if not REGISTRY_PATH.exists():
         return []
     out = []
@@ -72,12 +119,14 @@ def load_trials(phase: str | None = None, model: str | None = None) -> list[dict
                 continue
             if model and row["model"] != model:
                 continue
+            if horizon and row["horizon"] != horizon:
+                continue
             out.append(row)
     return out
 
 
 def n_trials(**filters: str) -> int:
-    """Trial count for DSR. Distinct configs, not raw rows (a re-run of the
-    same config is not an additional selection opportunity)."""
+    """Trial count for DSR: distinct selection identities (re-runs of the
+    same identity add no selection opportunity; crashed registrations count)."""
     rows = load_trials(**filters)
     return len({r["config_hash"] for r in rows})

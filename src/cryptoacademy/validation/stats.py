@@ -87,7 +87,8 @@ def min_track_record_length(
     if sr <= sr_benchmark:
         return float("inf")
     z = _N01.inv_cdf(confidence)
-    return 1 + (1 - skew * sr + (kurt - 1) / 4.0 * sr**2) * (z / (sr - sr_benchmark)) ** 2
+    bracket = max(1 - skew * sr + (kurt - 1) / 4.0 * sr**2, 0.0)
+    return 1 + bracket * (z / (sr - sr_benchmark)) ** 2
 
 
 def pbo_cscv(returns_matrix: np.ndarray, n_blocks: int = 16) -> dict:
@@ -102,6 +103,10 @@ def pbo_cscv(returns_matrix: np.ndarray, n_blocks: int = 16) -> dict:
     t, n = returns_matrix.shape
     if n < 2:
         raise ValueError("PBO needs at least 2 trials")
+    if n_blocks % 2:
+        raise ValueError("n_blocks must be even (CSCV symmetry requires it)")
+    if t < 2 * n_blocks:
+        raise ValueError(f"T={t} too small for n_blocks={n_blocks} (need >= {2 * n_blocks})")
     blocks = np.array_split(np.arange(t), n_blocks)
     half = n_blocks // 2
     logits = []
@@ -113,8 +118,11 @@ def pbo_cscv(returns_matrix: np.ndarray, n_blocks: int = 16) -> dict:
         is_sr = np.apply_along_axis(sharpe, 0, returns_matrix[is_rows])
         oos_sr = np.apply_along_axis(sharpe, 0, returns_matrix[oos_rows])
         star = int(np.argmax(is_sr))
-        # OOS relative rank of the IS winner (1 = best, 0 = worst)
-        rank = (oos_sr < oos_sr[star]).sum() + 1
+        # OOS relative midrank of the IS winner (ties split, not bottomed —
+        # strict < would push tied duplicates to rank 1 and inflate PBO)
+        below = (oos_sr < oos_sr[star]).sum()
+        ties = (oos_sr == oos_sr[star]).sum()  # includes the winner itself
+        rank = below + 0.5 * (ties - 1) + 1
         omega = rank / (n + 1)
         logits.append(math.log(omega / (1 - omega)))
     logits_arr = np.array(logits)
