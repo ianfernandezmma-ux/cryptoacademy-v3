@@ -97,6 +97,55 @@ def test_pbo_ties_use_midrank_not_bottom():
     assert result["mean_logit"] == pytest.approx(0.0, abs=1e-9)
 
 
+# ---- published reference vectors (cross-verified: pypbo tests, the
+# ---- Bailey & Lopez de Prado papers, rubenbriones/Probabilistic-Sharpe-Ratio)
+
+
+def test_vector_expected_max_of_100_standard_normals():
+    """pypbo: EVT approximation for N=100 unit-variance trials."""
+    assert expected_max_sharpe(100, 1.0) == pytest.approx(2.5306028932016846, abs=1e-9)
+
+
+def test_vector_psr_sharpe_frontier_paper():
+    """PSR paper example: monthly SR 1.585/sqrt(12), T=24, skew -2.448,
+    raw kurt 10.164 -> 0.913234... (pypbo full precision)."""
+    sr = 1.585 / (12**0.5)
+    assert psr(sr, t=24, skew=-2.448, kurt=10.164) == pytest.approx(0.9132343069, abs=1e-6)
+
+
+def test_vector_psr_normal_returns():
+    """Same paper, Normal-returns variant: PSR(0.458, 24, 0, 3) ~ 0.982."""
+    assert psr(0.458, t=24, skew=0.0, kurt=3.0) == pytest.approx(0.982, abs=1e-3)
+
+
+def test_vector_dsr_deflated_sharpe_paper():
+    """DSR paper worked example: daily SR 2.5/sqrt(250), N=100 trials with
+    V[SR]=0.5/250, T=1250, skew -3, raw kurt 10 -> 0.900397 ('90% chance').
+    With N=46 the paper prints 0.9505."""
+    sr = 2.5 / (250**0.5)
+    assert dsr(sr, t=1250, n_trials=100, var_trials=0.5 / 250,
+               skew=-3.0, kurt=10.0) == pytest.approx(0.9003968344, abs=1e-6)
+    assert dsr(sr, t=1250, n_trials=46, var_trials=0.5 / 250,
+               skew=-3.0, kurt=10.0) == pytest.approx(0.9505, abs=1e-4)
+
+
+def test_vector_mintrl_sharpe_frontier_figure8():
+    """pypbo pin of the PSR paper's Figure 8: monthly SR 3/sqrt(12) vs
+    benchmark 2.5/sqrt(12), skew -0.72, raw kurt 5.78 -> 27.3529 years."""
+    obs = min_track_record_length(
+        3 / (12**0.5), 2.5 / (12**0.5), skew=-0.72, kurt=5.78, confidence=0.95
+    )
+    assert obs / 12 == pytest.approx(27.352920196040301, abs=1e-6)
+
+
+def test_vector_mintrl_psr_paper_examples():
+    """rubenbriones pins (PSR paper): monthly SRs vs 0 benchmark, 95%."""
+    a = min_track_record_length(0.7079, 0.0, skew=-0.2250, kurt=2.9570)
+    assert a / 12 == pytest.approx(0.7152, abs=1e-3)
+    b = min_track_record_length(0.8183, 0.0, skew=-1.4455, kurt=7.0497)
+    assert b / 12 == pytest.approx(1.1593, abs=1e-3)
+
+
 def test_registry_identity_hash_distinguishes_model_and_horizon(tmp_path, monkeypatch):
     from cryptoacademy.validation import registry
 
