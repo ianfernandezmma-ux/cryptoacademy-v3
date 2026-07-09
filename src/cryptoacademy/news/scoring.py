@@ -143,6 +143,10 @@ def score_pending(limit: int = 500) -> dict:
 
     Cascade: embed title+lede -> mark near-duplicates of already-scored recent
     articles (skip LLM) -> LLM-score the survivors. Idempotent by PK.
+
+    Locking discipline: DuckDB is single-writer and the collector runs every
+    10 minutes, so we hold the connection only for the initial read and one
+    final batch write — never across LLM calls.
     """
     import duckdb
 
@@ -160,11 +164,6 @@ def score_pending(limit: int = 500) -> dict:
         """,
         [limit],
     ).fetchall()
-    if not pending:
-        conn.close()
-        return {"scored": 0, "duplicates": 0, "failed": 0}
-
-    # Recent scored articles form the dedup reference set (7-day window scale).
     recent = conn.execute(
         """
         SELECT a.url_hash, a.title, coalesce(substr(a.body, 1, 500), '')
@@ -173,9 +172,14 @@ def score_pending(limit: int = 500) -> dict:
         ORDER BY a.first_seen_at_utc DESC LIMIT 300
         """
     ).fetchall()
+    conn.close()  # release the write lock BEFORE the slow LLM loop
+    if not pending:
+        return {"scored": 0, "duplicates": 0, "failed": 0}
+
     ref_vecs = embed([f"{t}\n{b}" for _, t, b in recent]) if recent else []
     ref_hashes = [h for h, _, _ in recent]
 
+    results: list[list] = []
     scored = dupes = failed = 0
     now = datetime.now(UTC).replace(tzinfo=None)
     for url_hash, rev, title, body, backfilled in pending:
@@ -186,10 +190,8 @@ def score_pending(limit: int = 500) -> dict:
                 dup_of = ref_hashes[i]
                 break
         if dup_of:
-            conn.execute(
-                "INSERT OR IGNORE INTO article_scores VALUES "
-                "(?,?,?,?,NULL,NULL,NULL,NULL,NULL,NULL,?)",
-                [url_hash, rev, now, "dedup", dup_of],
+            results.append(
+                [url_hash, rev, now, "dedup", None, None, None, None, None, None, dup_of]
             )
             dupes += 1
             continue
@@ -197,16 +199,31 @@ def score_pending(limit: int = 500) -> dict:
         if result is None:
             failed += 1
             continue
-        conn.execute(
-            "INSERT OR IGNORE INTO article_scores VALUES (?,?,?,?,?,?,?,?,?,?,NULL)",
+        results.append(
             [
                 url_hash, rev, now, SCORER_MODEL,
                 ",".join(result.assets), result.sentiment, result.confidence,
-                result.event_type.value, result.severity, result.is_price_report,
-            ],
+                result.event_type.value, result.severity, result.is_price_report, None,
+            ]
         )
         ref_vecs.append(vec)
         ref_hashes.append(url_hash)
         scored += 1
-    conn.close()
+
+    # Single short write transaction, with retries in case the collector holds
+    # the lock at this exact moment.
+    for attempt in range(6):
+        try:
+            conn = duckdb.connect(str(config.NEWS_DB_PATH))
+            conn.executemany(
+                "INSERT OR IGNORE INTO article_scores VALUES (?,?,?,?,?,?,?,?,?,?,?)", results
+            )
+            conn.close()
+            break
+        except duckdb.IOException:
+            if attempt == 5:
+                raise
+            import time
+
+            time.sleep(20)
     return {"scored": scored, "duplicates": dupes, "failed": failed}
