@@ -209,6 +209,19 @@ def generate_labels() -> None:
 
 
 @app.command()
+def train_baselines() -> None:
+    """Phase 4.2 baselines: always-long, momentum-only, full-feature LightGBM
+    under purged CV, both horizons; every config registered."""
+    _setup_logging("train")
+    import json
+
+    from cryptoacademy.models.train import run_baselines
+
+    results = run_baselines()
+    typer.echo(json.dumps(results, indent=2, default=str))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")
