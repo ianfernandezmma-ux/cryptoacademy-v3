@@ -65,9 +65,20 @@ def _decayed(value: pl.Expr, weight: pl.Expr, half_life_h: float) -> pl.Expr:
 
 def llm_era_daily(asset: str) -> pl.DataFrame:
     """Aggregate LLM-scored live articles into daily features for one asset."""
+    import time
+
     import duckdb
 
-    conn = duckdb.connect(str(config.NEWS_DB_PATH), read_only=True)
+    conn = None
+    for attempt in range(6):  # collector holds the write lock ~5 min per run
+        try:
+            conn = duckdb.connect(str(config.NEWS_DB_PATH), read_only=True)
+            break
+        except duckdb.IOException:
+            if attempt == 5:
+                raise
+            time.sleep(20)
+    assert conn is not None
     rows = conn.execute(
         """
         SELECT a.published_at_utc, a.first_seen_at_utc, a.backfilled,
@@ -139,9 +150,22 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
 def gdelt_era_daily(asset: str) -> pl.DataFrame:
     """Aggregate GDELT GKG rows into era-1 daily features for one asset."""
     files = sorted((config.RAW_DIR / "gdelt").glob("*/gkg_*.parquet"))
-    if not files:
+    frames = []
+    for f in files:
+        try:
+            frames.append(pl.read_parquet(f))
+        except Exception:  # truncated by a killed harvester: drop -> re-harvested
+            import logging
+
+            logging.getLogger(__name__).warning("corrupt gdelt file removed: %s", f)
+            f.unlink(missing_ok=True)
+    if not frames:
         return pl.DataFrame()
-    df = pl.concat([pl.read_parquet(f) for f in files], how="vertical_relaxed")
+    # diagonal: files harvested before the `themes` column existed get nulls
+    df = pl.concat(frames, how="diagonal_relaxed")
+    if "themes" not in df.columns:
+        df = df.with_columns(pl.lit(None, dtype=pl.String).alias("themes"))
+    df = df.with_columns(pl.col("themes").fill_null(""))
     df = df.filter(pl.col("assets").str.contains(asset)).with_columns(
         (pl.col("file_time") + GDELT_PIT_BUFFER).alias("usable_at")
     )

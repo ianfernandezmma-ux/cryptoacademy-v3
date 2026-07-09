@@ -132,7 +132,14 @@ def download_klines(
     out = pl.concat(frames).sort("open_time").unique(subset=["open_time"], keep="first")
     dest = config.RAW_DIR / "klines" / asset / market.replace("/", "_")
     dest.mkdir(parents=True, exist_ok=True)
-    out.write_parquet(dest / f"{symbol}_{interval}.parquet")
+    path = dest / f"{symbol}_{interval}.parquet"
+    if path.exists():  # incremental top-up: merge with what we already have
+        out = (
+            pl.concat([pl.read_parquet(path), out])
+            .sort("open_time")
+            .unique(subset=["open_time"], keep="last")
+        )
+    out.write_parquet(path)
     return out
 
 
@@ -183,7 +190,14 @@ def download_funding(asset: str, symbol: str, start: str = "2020-01") -> pl.Data
     )
     dest = config.RAW_DIR / "funding" / asset
     dest.mkdir(parents=True, exist_ok=True)
-    out.write_parquet(dest / f"{symbol}_funding.parquet")
+    path = dest / f"{symbol}_funding.parquet"
+    if path.exists():
+        out = (
+            pl.concat([pl.read_parquet(path), out])
+            .sort("funding_time")
+            .unique(subset=["funding_time"], keep="last")
+        )
+    out.write_parquet(path)
     return out
 
 

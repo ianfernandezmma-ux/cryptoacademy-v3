@@ -124,7 +124,10 @@ def harvest_day(client: httpx.Client, day: datetime) -> int:
                     log.warning("gdelt %s failed permanently: %s", url, exc)
         stamp += timedelta(minutes=15)
     df = pl.DataFrame(rows, schema=SCHEMA) if rows else pl.DataFrame(schema=SCHEMA)
-    df.write_parquet(_day_path(day))
+    path = _day_path(day)
+    tmp = path.with_suffix(".tmp")  # atomic: a killed process never leaves a
+    df.write_parquet(tmp)           # truncated .parquet behind
+    tmp.replace(path)
     return len(df)
 
 

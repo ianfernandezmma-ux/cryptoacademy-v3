@@ -197,6 +197,58 @@ def snapshot_options_chain() -> None:
 
 
 @app.command()
+def build_matrix() -> None:
+    """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
+    _setup_logging("matrix")
+    from cryptoacademy.features.matrix import build_matrix as _build
+
+    for asset in config.load_assets():
+        df = _build(asset)
+        typer.echo(f"{asset}: {len(df)} rows x {len(df.columns)} cols")
+
+
+@app.command()
+def daily_update() -> None:
+    """One command that refreshes every dataset and rebuilds the matrices.
+    Scheduled daily 06:30 UTC — after Coin Metrics' D-1 completion."""
+    _setup_logging("daily_update")
+    from datetime import UTC, datetime, timedelta
+
+    from cryptoacademy.data.binance_vision import download_funding, download_klines
+    from cryptoacademy.data.fng import download_fng
+    from cryptoacademy.data.macro_onchain import backfill_macro_all
+    from cryptoacademy.features.matrix import build_matrix as _build
+    from cryptoacademy.notify import telegram
+
+    log = logging.getLogger("daily_update")
+    failures: list[str] = []
+    start = (datetime.now(UTC) - timedelta(days=40)).strftime("%Y-%m")
+    for step_name, step in [
+        ("prices", lambda: [
+            download_klines(a, m["spot_symbol"], "spot", start=start)
+            for a, m in config.load_assets().items()
+        ]),
+        ("funding", lambda: [
+            download_funding(a, m["perp_symbol"], start=start)
+            for a, m in config.load_assets().items()
+        ]),
+        ("fng", download_fng),
+        ("macro_onchain_etf", backfill_macro_all),
+        ("matrices", lambda: [_build(a) for a in config.load_assets()]),
+    ]:
+        try:
+            step()
+            log.info("daily-update step ok: %s", step_name)
+        except Exception as exc:  # keep going; report all failures at once
+            log.exception("daily-update step failed: %s", step_name)
+            failures.append(f"{step_name}: {exc}")
+    if failures:
+        telegram.send("🔴 daily-update failures: " + " | ".join(failures)[:500])
+        raise typer.Exit(1)
+    telegram.send("✅ daily-update complete: all datasets refreshed, matrices rebuilt")
+
+
+@app.command()
 def backfill_fng() -> None:
     """Download full Fear & Greed history (2018 -> today)."""
     _setup_logging("backfill")

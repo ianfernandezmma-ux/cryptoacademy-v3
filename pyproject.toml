@@ -15,6 +15,7 @@ dependencies = [
     "tenacity>=9.0",
     "pydantic>=2.9",
     "truststore>=0.10",
+    "pyarrow>=18",
 ]
 
 [dependency-groups]
