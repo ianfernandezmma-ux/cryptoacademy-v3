@@ -109,6 +109,23 @@ configuration is registered.
 - Registry discipline: use evaluate_config or register/log manually for EVERY
   evaluated configuration, including DL and meta-label trials (phase="4.4").
 
+### Regime standalone validation — verdict on the available window (313 days, 2020-01..2020-11)
+Run 2026-07-10 via `validate-regime` (forward-outcome gates, permutation-tested):
+- RAW daily scores: persistence FAILS (mean run 1.9d — the classifier
+  flip-flops), Spearman FAILS. Confirms the pilot's instruction: consume
+  SMOOTHED (3-day median), never raw.
+- SMOOTHED scores: persistence PASS (3.8d runs, clean diagonal transition
+  matrix), event-study PASS (dd risk-off > risk-on), extreme-flag AUC 0.70
+  (crypto_stress>=2 ranks top-decile forward-vol days well — supports the
+  gate/conditioning use, which is what the literature recommends anyway).
+  Linear Spearman rho 0.096 (p=0.045) — BELOW the 0.2 gate on this window.
+- Honest reading: the ordinal level is weakly linear in forward vol over a
+  single-year window dominated by one crisis; the EXTREME flag carries the
+  value. 4.4 must (a) re-run gates on the full 2020-2026 series when GDELT
+  completes, (b) feed the model the smoothed ordinals + the stress>=2 flag +
+  interactions, and let the with/without-regime comparison decide — a null
+  is acceptable.
+
 ## Pending items 4.4 inherits
 1. **GDELT backfill in progress** (~313/2,370 days done; hourly task; ~2-3
    days to completion). Until then: news-block ablation is unfinished
