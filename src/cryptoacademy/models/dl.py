@@ -161,11 +161,21 @@ def evaluate_patchtst(
     fold_metrics = []
     cv = PurgedKFold(n_splits=n_splits, embargo=timedelta(days=embargo_days))
     for fold_i, (train_idx, test_idx) in enumerate(cv.split(t0, t1)):
-        # per-fold impute + standardize exog with TRAIN stats only
-        mu = np.nanmean(x_exog[train_idx], axis=0)
-        sd = np.nanstd(x_exog[train_idx], axis=0) + 1e-8
+        # per-fold impute + standardize exog with TRAIN stats only.
+        # Columns that are ALL-NaN within this train fold (e.g. LLM-era news
+        # features early in history) get mu=0/sd=1 -> neutral zeros, not NaN
+        # poison (a single NaN made the whole model output NaN silently).
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            mu = np.nanmean(x_exog[train_idx], axis=0)
+            sd = np.nanstd(x_exog[train_idx], axis=0)
+        mu = np.where(np.isfinite(mu), mu, 0.0)
+        sd = np.where(np.isfinite(sd) & (sd > 1e-12), sd, 1.0)
         xe = (np.where(np.isnan(x_exog), mu, x_exog) - mu) / sd
-        xe = np.clip(xe, -5, 5)
+        xe = np.clip(xe, -5, 5).astype(np.float32)
+        assert np.isfinite(xe).all(), "non-finite features after fold standardization"
 
         model = _build_model(c, xe.shape[1]).to(device)
         opt = torch.optim.AdamW(model.parameters(), lr=c["lr"], weight_decay=c["weight_decay"])
@@ -185,6 +195,10 @@ def evaluate_patchtst(
                 opt.zero_grad()
                 out = model(tr_seq[idx], tr_exog[idx])
                 loss = loss_fn(out, tr_y[idx])
+                if not torch.isfinite(loss):
+                    raise RuntimeError(
+                        f"non-finite loss at fold {fold_i} — refusing to train on NaN"
+                    )
                 loss.backward()
                 opt.step()
             sched.step()
