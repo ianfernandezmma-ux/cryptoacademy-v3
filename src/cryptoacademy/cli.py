@@ -222,6 +222,49 @@ def train_baselines() -> None:
 
 
 @app.command()
+def run_sweep(n_trials: int = 40) -> None:
+    """Phase 4.2: label variants, Optuna sweep, SHAP-stable selection,
+    ablations — everything registered."""
+    _setup_logging("train")
+    import json
+
+    from cryptoacademy.labels.generate import generate_variants
+    from cryptoacademy.models.sweep import (
+        block_ablations,
+        optuna_sweep,
+        shap_stable_features,
+    )
+    from cryptoacademy.models.train import BASE_PARAMS, evaluate_config
+
+    generate_variants()
+    report: dict = {}
+    for horizon in ("24h", "96h"):
+        best = optuna_sweep(horizon, n_trials=n_trials)
+        params = dict(BASE_PARAMS)
+        bm = best["best_params"].pop("barrier_mult", None)
+        params.update(best["best_params"])
+        selected = shap_stable_features(horizon, params, barrier_mult=bm)
+        sel_metrics = evaluate_config(
+            horizon, ["price", "derivatives", "onchain", "macro", "news"],
+            params=params, tag="selected-features", barrier_mult=bm,
+            features_override=selected,
+        )
+        ablations = block_ablations(horizon, params, barrier_mult=bm)
+        report[horizon] = {
+            "sweep_best_mcc": best["best_value"],
+            "best_params": {**best["best_params"], "barrier_mult": bm},
+            "n_selected_features": len(selected),
+            "selected_mcc": sel_metrics["mean_mcc"],
+            "selected_acc": sel_metrics["mean_acc"],
+            "ablations": ablations,
+        }
+    (config.DATA_DIR / "trials").mkdir(parents=True, exist_ok=True)
+    out = config.DATA_DIR / "trials" / "phase42_report.json"
+    out.write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+    typer.echo(json.dumps(report, indent=2, default=str))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")

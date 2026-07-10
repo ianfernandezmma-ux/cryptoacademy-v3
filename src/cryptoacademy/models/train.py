@@ -80,12 +80,14 @@ def evaluate_config(
     n_splits: int = 5,
     embargo_days: int = 22,
     tag: str = "",
+    barrier_mult: float | None = None,
+    features_override: list[str] | None = None,
 ) -> dict:
     """Purged-CV evaluation of one configuration. Registers + logs the trial."""
     import lightgbm as lgb
 
-    df, all_features = build_training_frame(horizon)
-    feats = block_features(all_features, blocks)
+    df, all_features = build_training_frame(horizon, barrier_mult)
+    feats = features_override or block_features(all_features, blocks)
     if not feats:
         raise ValueError(f"no features for blocks {blocks}")
 
@@ -94,6 +96,7 @@ def evaluate_config(
         "n_splits": n_splits, "embargo_days": embargo_days,
         "n_features": len(feats), "barrier_mult": float(df["barrier_mult"][0]),
         "cusum_k": float(df["cusum_k"][0]),
+        "features_override": sorted(features_override) if features_override else None,
     }
     register_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, config_dict)
 

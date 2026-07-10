@@ -29,12 +29,21 @@ NON_FEATURE_COLS = {
 }
 
 
-def build_training_frame(horizon: str) -> tuple[pl.DataFrame, list[str]]:
+def build_training_frame(
+    horizon: str, barrier_mult: float | None = None
+) -> tuple[pl.DataFrame, list[str]]:
     """Returns (frame, feature_names). Frame columns: features + label, ret,
-    sample_weight, t0_time, t1_time, asset, asset_id."""
+    sample_weight, t0_time, t1_time, asset, asset_id.
+
+    barrier_mult selects a label variant (None -> default set)."""
+    from cryptoacademy.labels.generate import DEFAULT_BARRIER_MULT, label_suffix
+
+    suffix = label_suffix(barrier_mult if barrier_mult is not None else DEFAULT_BARRIER_MULT)
     frames = []
     for i, asset in enumerate(config.load_assets()):
-        labels = pl.read_parquet(config.DATA_DIR / "labels" / f"labels_{asset}_{horizon}.parquet")
+        labels = pl.read_parquet(
+            config.DATA_DIR / "labels" / f"labels_{asset}_{horizon}{suffix}.parquet"
+        )
         matrix = pl.read_parquet(config.DATA_DIR / "features" / f"matrix_{asset}.parquet")
         joined = (
             labels.sort("t0_time")

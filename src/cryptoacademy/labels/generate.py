@@ -87,6 +87,28 @@ def calibrate_k(horizon_bars: int, barrier_mult: float = DEFAULT_BARRIER_MULT) -
     return K_GRID[-1]
 
 
+def label_suffix(barrier_mult: float) -> str:
+    """File suffix per barrier variant; the default keeps the plain name."""
+    return "" if barrier_mult == DEFAULT_BARRIER_MULT else f"_m{round(barrier_mult * 10)}"
+
+
+def generate_variants(mults: tuple[float, ...] = (1.0, 2.0)) -> None:
+    """Label sets for non-default barrier multipliers (sweep dimension).
+    Reuses the k calibrated for the default set so event SAMPLING is identical
+    across variants — only the labeling differs."""
+    dest = config.DATA_DIR / "labels"
+    dest.mkdir(parents=True, exist_ok=True)
+    for hname, hbars in HORIZONS.items():
+        k = calibrate_k(hbars, DEFAULT_BARRIER_MULT)
+        for mult in mults:
+            for asset in config.load_assets():
+                ev = generate_for_asset(asset, k, hbars, mult)
+                if ev.is_empty():
+                    continue
+                ev.write_parquet(dest / f"labels_{asset}_{hname}{label_suffix(mult)}.parquet")
+                log.info("variant m=%.1f %s %s: %d events", mult, asset, hname, len(ev))
+
+
 def generate_all(barrier_mult: float = DEFAULT_BARRIER_MULT) -> dict:
     """Labels for every (asset, horizon). Returns summary stats per set."""
     dest = config.DATA_DIR / "labels"
