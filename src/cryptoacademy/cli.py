@@ -267,6 +267,30 @@ def run_sweep(n_trials: int = 40) -> None:
 
 
 @app.command()
+def backfill_regime(max_days: int = 5000) -> None:
+    """Score daily risk regimes over all harvested GDELT days (resumable)."""
+    _setup_logging("regime")
+    from cryptoacademy.news.regime import backfill_regime as _run
+
+    result = _run(max_days=max_days)
+    typer.echo(str(result))
+
+
+@app.command()
+def validate_regime() -> None:
+    """Run the standalone regime quality gates against forward outcomes."""
+    _setup_logging("regime")
+    import polars as pl
+
+    from cryptoacademy.news.regime import REGIME_PATH
+    from cryptoacademy.validation.regime_gates import format_report, validate_regime_scores
+
+    regime = pl.read_parquet(REGIME_PATH)
+    results = validate_regime_scores(regime)
+    typer.echo(format_report(results))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")
