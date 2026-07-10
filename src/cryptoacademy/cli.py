@@ -291,6 +291,30 @@ def validate_regime() -> None:
 
 
 @app.command()
+def run_meta(meta_threshold: float = 0.55) -> None:
+    """Phase 4.4: meta-labeling evaluation for both horizons (best 4.2 configs)."""
+    _setup_logging("train")
+    import json
+
+    from cryptoacademy.models.meta import run_meta_labeling
+    from cryptoacademy.models.train import BASE_PARAMS
+
+    report_path = config.DATA_DIR / "trials" / "phase42_report.json"
+    best = json.loads(report_path.read_text(encoding="utf-8"))
+    out = {}
+    for horizon in ("24h", "96h"):
+        params = dict(BASE_PARAMS)
+        bp = dict(best[horizon]["best_params"])
+        bm = bp.pop("barrier_mult", None)
+        params.update(bp)
+        m = run_meta_labeling(
+            horizon, params=params, barrier_mult=bm, meta_threshold=meta_threshold
+        )
+        out[horizon] = {k: v for k, v in m.items() if k != "folds"}
+    typer.echo(json.dumps(out, indent=2, default=str))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")
