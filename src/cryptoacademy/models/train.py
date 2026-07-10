@@ -83,22 +83,33 @@ def evaluate_config(
     barrier_mult: float | None = None,
     features_override: list[str] | None = None,
 ) -> dict:
-    """Purged-CV evaluation of one configuration. Registers + logs the trial."""
+    """Purged-CV evaluation of one configuration. Registers + logs the trial.
+
+    Reporting caveats (audit F1/F2): a score obtained with features_override
+    produced by SHAP selection on these same folds is selection-biased — tag
+    it accordingly and report the full-feature score beside it. mean_ret and
+    mean_mcc are NOT comparable across barrier_mult variants (touch returns
+    scale with the multiplier and label difficulty shifts); cross-variant
+    comparison happens on Phase-5 return streams only.
+    """
     import lightgbm as lgb
 
+    # register INTENT first so even data-loading failures count (audit F6)
+    intent = {
+        "blocks": blocks, "params": params or BASE_PARAMS, "n_splits": n_splits,
+        "embargo_days": embargo_days, "barrier_mult_requested": barrier_mult,
+        "features_override": sorted(features_override) if features_override else None,
+    }
+    register_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, intent)
     df, all_features = build_training_frame(horizon, barrier_mult)
     feats = features_override or block_features(all_features, blocks)
     if not feats:
         raise ValueError(f"no features for blocks {blocks}")
-
-    config_dict = {
-        "blocks": blocks, "params": params or BASE_PARAMS,
-        "n_splits": n_splits, "embargo_days": embargo_days,
-        "n_features": len(feats), "barrier_mult": float(df["barrier_mult"][0]),
+    realized = {
+        "n_features": len(feats),
+        "barrier_mult": float(df["barrier_mult"][0]),
         "cusum_k": float(df["cusum_k"][0]),
-        "features_override": sorted(features_override) if features_override else None,
     }
-    register_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, config_dict)
 
     df = df.sort("t0_time")
     t0 = df["t0_time"].to_numpy()
@@ -134,8 +145,9 @@ def evaluate_config(
         f"mean_{k}": float(np.mean([m[k] for m in fold_metrics]))
         for k in ("acc", "mcc", "hit_ret", "mean_ret")
     }
-    metrics = {"folds": fold_metrics, **means}
-    log_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, config_dict, metrics)
+    metrics = {"folds": fold_metrics, "realized": realized, **means}
+    # completion row shares the intent's identity hash (same config dict)
+    log_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, intent, metrics)
     log.info("%s %s blocks=%s -> %s", horizon, tag or "lgbm", blocks, means)
     return metrics
 

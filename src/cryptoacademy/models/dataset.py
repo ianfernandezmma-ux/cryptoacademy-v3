@@ -5,7 +5,9 @@ decision day at or before t0. Features at decision D are built from data
 through D-1, so an event occurring during day D sees only information that
 was knowable at D 00:00 UTC — strictly before the event.
 
-Pooled across assets (asset_id categorical) to double the effective sample.
+Pooled across assets to double the effective sample. Note: asset_id is
+bookkeeping, NOT a feature (the model is asset-agnostic by design; making it
+a feature would be a new registered trial dimension).
 """
 
 from __future__ import annotations
@@ -26,6 +28,9 @@ NON_FEATURE_COLS = {
     # label/bookkeeping columns after the join
     "t0_idx", "t1_idx", "label", "ret", "trgt", "touch", "t0_time", "t1_time",
     "uniqueness", "w_attrib", "w_decay", "sample_weight", "asset_id",
+    # label-generation constants (would slip through the dtype filter and into
+    # features_override universes — audit F4)
+    "barrier_mult", "cusum_k",
 }
 
 
@@ -59,6 +64,18 @@ def build_training_frame(
         bad = joined.filter(pl.col("decision_day") > pl.col("t0_time"))
         if len(bad):
             raise RuntimeError(f"asof join produced future decision days for {asset}")
+        # variant guard (audit F5): a non-default label set must share the
+        # default's event sampling (same calibrated k), else t0 sets diverge
+        if suffix:
+            default_k = pl.read_parquet(
+                config.DATA_DIR / "labels" / f"labels_{asset}_{horizon}.parquet",
+                columns=["cusum_k"],
+            )["cusum_k"][0]
+            if labels["cusum_k"][0] != default_k:
+                raise RuntimeError(
+                    f"label variant {suffix} for {asset} {horizon} was generated with "
+                    f"k={labels['cusum_k'][0]} != default k={default_k}; regenerate variants"
+                )
         frames.append(joined)
     df = pl.concat(frames, how="diagonal_relaxed")  # column order differs per asset
     feature_names = sorted(

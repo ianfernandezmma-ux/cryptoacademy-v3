@@ -244,9 +244,11 @@ def run_sweep(n_trials: int = 40) -> None:
         bm = best["best_params"].pop("barrier_mult", None)
         params.update(best["best_params"])
         selected = shap_stable_features(horizon, params, barrier_mult=bm)
+        # tag makes the in-loop selection bias explicit (audit F1): this score
+        # is selection-conditioned; the unbiased anchor is the full-feature run
         sel_metrics = evaluate_config(
             horizon, ["price", "derivatives", "onchain", "macro", "news"],
-            params=params, tag="selected-features", barrier_mult=bm,
+            params=params, tag="shap-selected-INLOOP", barrier_mult=bm,
             features_override=selected,
         )
         ablations = block_ablations(horizon, params, barrier_mult=bm)
