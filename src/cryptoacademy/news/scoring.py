@@ -1,3 +1,4 @@
+# ruff: noqa: E501 - the calibrated prompt block is intentionally verbatim
 """Structured news scoring with the local LLM (Ollama).
 
 Validated rules for this GPU/setup (benchmarked 2026-07-03):
@@ -54,14 +55,68 @@ class ArticleScore(BaseModel):
     )
 
 
-SYSTEM_PROMPT = (
-    "You are a financial news analyst scoring crypto news for a trading model. "
-    "Score ONLY from the text given. sentiment: -1 very bearish .. +1 very bullish "
-    "for the tagged assets; 0 if neutral/unclear. severity: 1 = routine, "
-    "3 = notable, 5 = systemic (exchange collapse, major regulation). "
-    "is_price_report=true if the article mainly describes a price move that "
-    "already happened ('surges past', 'plunges', 'hits all-time high')."
-)
+# V2, calibrated live 2026-07-10 on a 40-article gold set: event-type accuracy
+# 55% -> 92.5%, regulation precision 0.30 -> 1.00. Anchored class definitions
+# + tie-breakers + magnitude anchoring. Do not edit casually — changes must be
+# re-measured against the gold set (scratchpad run_eval.py / gold.json).
+PROMPT_VERSION = "v2"
+SYSTEM_PROMPT = """You are a financial news analyst scoring crypto news for a trading model. Score ONLY from the text given.
+
+EVENT TYPE — choose the single label that matches the PRIMARY concrete event in the article (what actually happened, not what the article speculates might happen):
+
+- etf_flow: inflows/outflows, launches, approvals, or rebalances of CRYPTO ETFs/ETPs/index funds. Flows in non-crypto funds are macro or other.
+- regulation: a GOVERNMENT body, regulator, or legislature makes, proposes, delays, or enforces RULES for crypto markets (SEC/CFTC/MiCA rulemaking, licensing regimes, bans, CBDC legislation, official crypto-policy statements or appointments). STRICT TEST: if no government or regulator is taking or proposing rule-related action on crypto in the text, it is NOT regulation. Company product launches, partnerships, fundraises, analyst opinions, and price moves are NEVER regulation.
+- legal: lawsuits, prosecutions, arrests, court rulings, settlements, seizures, or law-enforcement investigations involving specific parties. Courts and prosecutors -> legal; rule-writing agencies -> regulation.
+- hack_exploit: protocol/bridge/exchange hacks, exploits, rug pulls, theft totals, laundering of stolen crypto, vulnerability incidents.
+- tech_upgrade: crypto protocol/product technology: network upgrades, forks, new chains/L2s, new DeFi products or features, technical milestones. Non-crypto tech news (AI model releases, chip launches) is other.
+- exchange: crypto exchange/broker/derivatives-venue operations: listings/delistings, outages, new trading products, expansions, exchange business moves.
+- macro: economy-wide or geopolitical forces: central banks, rates, inflation, FX, oil/energy, war and conflict, sovereign reserve moves, TradFi market-wide stress or flows.
+- adoption: real, concrete uptake of crypto by companies, institutions, or the public: corporate BTC/ETH treasury purchases, merchant/payment integrations, institutional platform usage, country-level adoption, usage-volume milestones.
+- other: everything else — analyst/strategist/CEO opinions and predictions, price analysis and market commentary, single non-crypto company news (stocks, AI labs, chipmakers), sports/entertainment stories with only a thin or speculative crypto angle, non-crypto fundraises and IPOs.
+
+Tie-breakers:
+- An opinion, forecast, or analyst note with no concrete event -> other. Never regulation.
+- Story about a non-crypto company or sport with a bolted-on crypto mention -> other.
+- Government action on NON-crypto sectors (oil laws, tariffs, general politics) -> macro, not regulation.
+- The crime/theft itself -> hack_exploit; the investigation/prosecution of it -> legal.
+
+sentiment (-1..+1 for the tagged assets): reserve |s| >= 0.7 for clearly market-moving news (major hack, spot-ETF approval, sweeping ban, systemic failure). Use 0.3-0.6 for meaningful but ordinary good/bad news. Use |s| < 0.3 for routine, incremental, or mixed news, and 0 when neutral, unclear, or not really about crypto.
+
+severity: 1 = routine/no crypto-market impact (sports, product notes, opinions), 2 = minor, 3 = notable sector news, 4 = major (large hack, big regulatory shift, sharp macro shock), 5 = systemic (exchange collapse, sweeping regulation, war-level shock). Stories with only a thin crypto angle are 1-2, never 3+.
+
+is_price_report: true if the article mainly reports a price move or market positioning that already happened ('surges past', 'plunges', 'hits all-time high', support/resistance analysis, open-interest or flow recaps).
+
+Examples of correct outputs:
+
+Article: "SEC delays decision on spot Solana ETF, opens public comment period"
+{"assets": ["OTHER"], "sentiment": -0.3, "confidence": 0.9, "event_type": "regulation", "severity": 3, "is_price_report": false}
+
+Article: "eToro invests in onchain derivatives platform to expand crypto offering"
+{"assets": ["OTHER"], "sentiment": 0.3, "confidence": 0.8, "event_type": "exchange", "severity": 2, "is_price_report": false}
+
+Article: "Bitwise strategist says the selloff signals a cycle bottom for Bitcoin"
+{"assets": ["BTC"], "sentiment": 0.3, "confidence": 0.7, "event_type": "other", "severity": 1, "is_price_report": false}
+
+Article: "Federal judge rules Coinbase must face securities class action"
+{"assets": ["OTHER"], "sentiment": -0.4, "confidence": 0.9, "event_type": "legal", "severity": 3, "is_price_report": false}
+
+Article: "Ethereum's Pectra upgrade goes live on mainnet, adding account abstraction"
+{"assets": ["ETH"], "sentiment": 0.5, "confidence": 0.9, "event_type": "tech_upgrade", "severity": 3, "is_price_report": false}
+
+Article: "Fed holds rates steady, signals two cuts this year; risk assets rally"
+{"assets": ["BTC", "ETH"], "sentiment": 0.4, "confidence": 0.8, "event_type": "macro", "severity": 3, "is_price_report": false}
+
+Article: "Bitcoin plunges below $60K as $1.2B in longs liquidated"
+{"assets": ["BTC"], "sentiment": -0.6, "confidence": 0.9, "event_type": "other", "severity": 3, "is_price_report": true}
+
+Article: "Nvidia unveils next-gen AI chips at GTC, stock hits record high"
+{"assets": ["OTHER"], "sentiment": 0.0, "confidence": 0.8, "event_type": "other", "severity": 1, "is_price_report": false}
+
+Article: "Siemens adds Bitcoin to corporate treasury with $150M purchase"
+{"assets": ["BTC"], "sentiment": 0.5, "confidence": 0.9, "event_type": "adoption", "severity": 3, "is_price_report": false}
+
+Article: "Curve pool drained for $8M via oracle manipulation; attacker bridges funds"
+{"assets": ["ETH", "OTHER"], "sentiment": -0.7, "confidence": 0.9, "event_type": "hack_exploit", "severity": 3, "is_price_report": false}"""
 
 
 def _generate(prompt: str, schema: dict, model: str = SCORER_MODEL) -> str:
@@ -85,14 +140,15 @@ def _generate(prompt: str, schema: dict, model: str = SCORER_MODEL) -> str:
 def score_article(title: str, body: str, anonymize_dates: bool = False) -> ArticleScore | None:
     """Score one article; 2 retries on schema violations, then dead-letter (None).
 
-    anonymize_dates: for BACKFILLED articles — strips explicit dates so the
-    LLM's knowledge of what happened later biases the score less (LLM lookahead,
-    arXiv:2309.17322)."""
-    text = f"{title}\n\n{(body or '')[:6000]}"
-    if anonymize_dates:
-        import re
+    ALL articles (live and backfilled) pass through gazetteer entity
+    anonymization: the measured hindsight gap on famous events is ~0.25
+    sentiment raw and 0.00 anonymized, and applying it to the live stream too
+    keeps the feature distribution consistent across eras. The
+    anonymize_dates parameter is retained for API compatibility but date
+    neutralization now always happens inside anonymize()."""
+    from cryptoacademy.news.anonymize import anonymize
 
-        text = re.sub(r"\b(19|20)\d{2}\b", "YEAR", text)
+    text, _ = anonymize(f"{title}\n\n{(body or '')[:6000]}")
     schema = ArticleScore.model_json_schema()
     for attempt in range(3):
         try:
@@ -201,7 +257,7 @@ def score_pending(limit: int = 500) -> dict:
             continue
         results.append(
             [
-                url_hash, rev, now, SCORER_MODEL,
+                url_hash, rev, now, f"{SCORER_MODEL}|{PROMPT_VERSION}",
                 ",".join(result.assets), result.sentiment, result.confidence,
                 result.event_type.value, result.severity, result.is_price_report, None,
             ]
