@@ -70,7 +70,9 @@ def evaluate_chronos(horizon: str) -> dict:
     contexts, lasts, keys = [], [], []
     for asset, day in tasks.iter_rows():
         dates, close = daily_by_asset[asset]
-        j = int(np.searchsorted(dates, day))  # bars strictly before decision day
+        # numpy datetime64 arrays are tz-naive UTC; strip tzinfo before comparing
+        day_np = np.datetime64(day.replace(tzinfo=None))
+        j = int(np.searchsorted(dates, day_np))  # bars strictly before decision day
         if j < 64:
             continue
         ctx = np.log(close[max(0, j - CONTEXT):j])
@@ -83,11 +85,16 @@ def evaluate_chronos(horizon: str) -> dict:
     for b0 in range(0, len(contexts), batch):
         chunk = contexts[b0 : b0 + batch]
         quantiles, _ = pipeline.predict_quantiles(
-            context=chunk, prediction_length=h_days, quantile_levels=QUANTILES
+            chunk, prediction_length=h_days, quantile_levels=QUANTILES
         )
-        arr = quantiles.cpu().numpy()  # [B, h_days, n_q]
+        # returns a list of per-series tensors [h_days, n_q] (or one stacked tensor)
         for i in range(len(chunk)):
-            probs[keys[b0 + i]] = _prob_up(arr[i, h_days - 1, :], lasts[b0 + i])
+            q_i = quantiles[i]
+            if hasattr(q_i, "cpu"):
+                q_i = q_i.float().cpu().numpy()
+            # per-series output is [1, h_days, n_q]; drop the batch dim
+            arr_i = np.asarray(q_i).reshape(-1, len(QUANTILES))
+            probs[keys[b0 + i]] = _prob_up(arr_i[h_days - 1, :], lasts[b0 + i])
 
     rows = df.select(["asset", "decision_day", "label"]).iter_rows()
     y_true, y_pred = [], []
