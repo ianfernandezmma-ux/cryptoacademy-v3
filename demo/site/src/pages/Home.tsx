@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadLatest, fmtUtc, type Latest } from "../lib/data";
 
 const STEPS = [
@@ -28,8 +28,23 @@ const STEPS = [
 
 export default function Home() {
   const [latest, setLatest] = useState<Latest | null | undefined>(undefined);
+  const coinRef = useRef<HTMLVideoElement>(null);
+
   useEffect(() => {
     loadLatest().then(setLatest);
+  }, []);
+
+  // Autoplay reliably: React doesn't reflect `muted` into the DOM attribute,
+  // and StrictMode's double-mount can interrupt a mount-time play() — so we
+  // (re)try after mount and again once the video has data.
+  useEffect(() => {
+    const v = coinRef.current;
+    if (!v) return;
+    v.muted = true;
+    const tryPlay = () => v.play().catch(() => {});
+    tryPlay();
+    v.addEventListener("canplay", tryPlay);
+    return () => v.removeEventListener("canplay", tryPlay);
   }, []);
 
   return (
@@ -64,7 +79,17 @@ export default function Home() {
             </div>
           </div>
           <div className="ca-hero-coin">
-            <img src={`${import.meta.env.BASE_URL}assets/coin.png`} alt="" />
+            <video
+              ref={coinRef}
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster={`${import.meta.env.BASE_URL}assets/coin-hero.webp`}
+              aria-hidden
+            >
+              <source src={`${import.meta.env.BASE_URL}assets/coin-hero.mp4`} type="video/mp4" />
+            </video>
           </div>
         </div>
       </section>
