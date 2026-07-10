@@ -1,0 +1,36 @@
+{
+  "_fixture": true,
+  "schema_version": 1,
+  "generated_at": "2026-07-10T06:58:12Z",
+  "commit_sha": "abc1234",
+  "model_version": "lgbm-full+meta@v3-fixture",
+  "signals": [
+    {
+      "asset": "BTC",
+      "horizon_h": 96,
+      "p_up": 0.57,
+      "direction": "UP",
+      "meta_gate": { "pass": true, "p_meta": 0.63, "coverage_pct": 12.8 },
+      "regime": "risk_on",
+      "features_asof": "2026-07-09T23:59:59Z"
+    },
+    {
+      "asset": "BTC",
+      "horizon_h": 24,
+      "p_up": 0.52,
+      "direction": "UP",
+      "meta_gate": null,
+      "regime": "risk_on",
+      "features_asof": "2026-07-09T23:59:59Z"
+    },
+    {
+      "asset": "ETH",
+      "horizon_h": 96,
+      "p_up": 0.46,
+      "direction": "DOWN",
+      "meta_gate": { "pass": false, "p_meta": 0.41, "coverage_pct": 12.8 },
+      "regime": "risk_on",
+      "features_asof": "2026-07-09T23:59:59Z"
+    }
+  ]
+}

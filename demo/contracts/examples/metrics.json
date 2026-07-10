@@ -1,0 +1,43 @@
+{
+  "_fixture": true,
+  "schema_version": 1,
+  "generated_at": "2026-07-10T06:58:12Z",
+  "commit_sha": "abc1234",
+  "cv_scheme": "Purged 5-fold, embargo 22d, all trials registered",
+  "n_trials_registry": 0,
+  "lockbox_note": "Data from 2026-01-01 onward is sealed until Phase 5.",
+  "horizons": [
+    {
+      "horizon_h": 24,
+      "label_spec": "triple-barrier m=1.5",
+      "mcc": 0.065,
+      "baseline_momentum_mcc": 0.0,
+      "meta": null,
+      "dsr": null,
+      "pbo": null
+    },
+    {
+      "horizon_h": 96,
+      "label_spec": "triple-barrier m=1.0",
+      "mcc": 0.093,
+      "baseline_momentum_mcc": 0.0,
+      "meta": {
+        "hit_rate_base": 0.538,
+        "hit_rate_gated": 0.616,
+        "uplift_pp": 7.8,
+        "coverage_pct": 12.8
+      },
+      "dsr": null,
+      "pbo": null
+    }
+  ],
+  "challengers": [
+    { "name": "PatchTST", "mcc_24h": 0.020, "mcc_96h": 0.028, "caveat": null },
+    {
+      "name": "Chronos-2 zero-shot",
+      "mcc_24h": 0.014,
+      "mcc_96h": 0.013,
+      "caveat": "pretraining-overlap caveat — see methodology"
+    }
+  ]
+}

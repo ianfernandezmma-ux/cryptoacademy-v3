@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CryptoAcademy · Landing explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ca-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+    --ca-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  }
+  html, body { margin: 0; padding: 0; }
+  body { background: #f0eee9; font-family: var(--ca-display); }
+
+  /* ── courses page micro-interactions ─────────────────────── */
+  .courses-modulecard:hover {
+    transform: translateY(-3px);
+    border-color: rgba(168, 238, 113, 0.5) !important;
+  }
+
+  /* ── coin + title animations ─────────────────────────────── */
+  @keyframes ca-coin-in {
+    0%   { opacity: 0; transform: scale(0.35); }
+    60%  { opacity: 1; }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  .ca-coin-scale {
+    animation: ca-coin-in 1.4s cubic-bezier(.22,.9,.3,1) both;
+  }
+
+  @keyframes ca-coin-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-12px); }
+  }
+  .ca-coin-float {
+    animation: ca-coin-float 6s ease-in-out infinite;
+  }
+
+  /* slow Y-axis wobble, like a coin gently rotating in space */
+  @keyframes ca-coin-tilt {
+    0%   { transform: perspective(1400px) rotateY(-14deg) rotateZ(-2deg); }
+    50%  { transform: perspective(1400px) rotateY( 14deg) rotateZ( 2deg); }
+    100% { transform: perspective(1400px) rotateY(-14deg) rotateZ(-2deg); }
+  }
+  .ca-coin-tilt {
+    animation: ca-coin-tilt 14s ease-in-out infinite;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+
+  @keyframes ca-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(0.96); }
+    50%      { opacity: 0.95; transform: scale(1.05); }
+  }
+  .ca-pulse {
+    animation: ca-pulse 4.5s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
+
+  @keyframes ca-ring-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  .ca-ring-spin {
+    animation: ca-ring-spin 60s linear infinite;
+    transform-origin: 50% 50%;
+  }
+
+  @keyframes ca-word-up {
+    0%   { opacity: 0; transform: translateY(40px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .ca-word-up {
+    animation: ca-word-up 1s cubic-bezier(.2,.8,.2,1) both;
+    will-change: transform, opacity;
+  }
+
+  @keyframes ca-fade-in {
+    0%   { opacity: 0; transform: translateY(14px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  .ca-fade-in {
+    animation: ca-fade-in 0.9s cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  /* re-trigger animations when an artboard mounts */
+  .ca-artboard-root { animation: none; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="landing.jsx"></script>
+<script type="text/babel" src="courses.jsx"></script>
+<script type="text/babel" src="ml-model.jsx"></script>
+<script type="text/babel" src="daily-reports.jsx"></script>
+
+<script type="text/babel">
+  const App = () => (
+    <DesignCanvas>
+      <DCSection
+        id="landing"
+        title="Landing"
+        subtitle="Eclipse palette · locked in"
+      >
+        <DCArtboard id="landing-green" label="Landing · Hero + How it works" width={1440} height={2080}>
+          <Landing themeKey="greenDark" />
+        </DCArtboard>
+      </DCSection>
+      <DCSection
+        id="courses"
+        title="Courses"
+        subtitle="Academic tone · locked in"
+      >
+        <DCArtboard id="courses-academic" label="Courses" width={1440} height={3200}>
+          <Courses tone="academic" />
+        </DCArtboard>
+      </DCSection>
+      <DCSection
+        id="ml-model"
+        title="ML Model"
+        subtitle="Live predictions dashboard · ready to wire to Python"
+      >
+        <DCArtboard id="ml-dashboard" label="ML Model · Dashboard" width={1440} height={3000}>
+          <MlModel />
+        </DCArtboard>
+      </DCSection>
+      <DCSection
+        id="daily-reports"
+        title="Daily Reports"
+        subtitle="Today’s brief at the top · 7-day archive below"
+      >
+        <DCArtboard id="daily-reports-page" label="Daily Reports" width={1440} height={2200}>
+          <DailyReports />
+        </DCArtboard>
+      </DCSection>
+    </DesignCanvas>
+  );
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

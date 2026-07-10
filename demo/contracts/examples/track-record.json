@@ -1,0 +1,33 @@
+{
+  "_fixture": true,
+  "schema_version": 1,
+  "generated_at": "2026-07-10T07:00:03Z",
+  "rows": [
+    {
+      "id": "2026-07-06_BTC_96",
+      "published_at": "2026-07-06T07:00:02Z",
+      "publish_sha": "aaa1111",
+      "asset": "BTC",
+      "horizon_h": 96,
+      "p_up": 0.58,
+      "direction": "UP",
+      "gate_pass": true,
+      "outcome": "hit",
+      "resolved_at": "2026-07-10T07:00:03Z",
+      "resolve_sha": "bbb2222"
+    },
+    {
+      "id": "2026-07-10_BTC_96",
+      "published_at": "2026-07-10T07:00:03Z",
+      "publish_sha": "ccc3333",
+      "asset": "BTC",
+      "horizon_h": 96,
+      "p_up": 0.57,
+      "direction": "UP",
+      "gate_pass": true,
+      "outcome": null,
+      "resolved_at": null,
+      "resolve_sha": null
+    }
+  ]
+}
