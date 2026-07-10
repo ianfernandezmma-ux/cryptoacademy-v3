@@ -12,7 +12,13 @@ This folder holds everything related to the public website ("the demo").
 - **`contracts/`** — the site data contract (`site-data.md`) and valid
   example artifacts (`examples/*.json`, all marked `"_fixture": true` so
   they can never ship to production).
-- **`site/`** — (created at milestone M0) the Vite + React + TS app.
+- **`site/`** — the Vite + React + TS app (M0+M1 built 2026-07-10).
+  Product-oriented per Ian's pivot: Home / Today's Signal / Daily Brief /
+  Learn, plain-language signals for crypto beginners, no research metrics
+  in the UI. Run: `cd demo/site && npm install && npm run dev` (port 5173,
+  also in `.claude/launch.json` as `demo-site`). Sample data lives in
+  `site/public/data/` marked `"_fixture": true` and is banner-labeled in
+  the UI until the pipeline writes real artifacts (M2).
 
 ## Ground rule
 

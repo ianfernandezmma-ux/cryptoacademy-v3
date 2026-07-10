@@ -1,0 +1,56 @@
+/* Design tokens — ported from the legacy demo's "Eclipse" theme
+   (demo/legacy/landing.jsx THEMES.greenDark). Single source for color,
+   type, spacing. Light theme ("Bone") reserved for later. */
+
+:root {
+  /* color */
+  --bg: #080a09;
+  --bg-alt: #0d100e;
+  --bg-panel: rgba(255, 255, 255, 0.025);
+  --fg: #f1f3ee;
+  --fg-soft: #c9cdc1;
+  --fg-muted: #9b9e92; /* lifted from legacy #8b8e83 for WCAG contrast */
+  --fg-dim: #6a6d63;
+  --accent: #a8ee71;
+  --accent-ink: #0a1304;
+  --accent-soft: rgba(168, 238, 113, 0.16);
+  --glow: rgba(168, 238, 113, 0.55);
+  --down: #ef6464;
+  --down-soft: rgba(239, 100, 100, 0.14);
+  --warn: #e9a83c;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-soft: rgba(255, 255, 255, 0.05);
+  --grid-dot: rgba(255, 255, 255, 0.05);
+
+  /* type */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+
+  /* layout */
+  --max-w: 1160px;
+  --pad-x: clamp(18px, 4vw, 48px);
+  --radius: 16px;
+  --radius-lg: 22px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}

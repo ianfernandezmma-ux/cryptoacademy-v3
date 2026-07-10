@@ -115,6 +115,16 @@ The visual identity is genuinely good — this is the part worth migrating:
 
 ## 4. Vision — what "the perfect site" is
 
+> **PIVOT 2026-07-10 (Ian):** the site is a **functional product for new
+> crypto users**, not a research showcase. No project explanation, no model
+> metrics/graphs on the main surfaces. The aim: help beginners *learn* the
+> market and *use* the predictions + daily overviews to their advantage.
+> Research transparency moves to a compact "How it works / Trust" page and
+> the docs; §6 below is superseded where it conflicts with this. Pages:
+> Home · Today's Signal · Daily Brief · Learn. Plain-language signal
+> presentation (no MCC, no probability jargon without explanation),
+> educational callouts everywhere, honest Pending/sample states retained.
+
 **A public, verifiable, honest window into a real ML trading pipeline.**
 One sentence pitch on the hero:
 

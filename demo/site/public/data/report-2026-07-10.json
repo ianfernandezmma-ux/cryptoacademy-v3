@@ -1,0 +1,40 @@
+{
+  "_fixture": true,
+  "schema_version": 1,
+  "generated_at": "2026-07-10T06:58:41Z",
+  "commit_sha": "abc1234",
+  "date": "2026-07-10",
+  "llm": { "model": "qwen3.6:35b-a3b", "prompt_version": "report-v1" },
+  "sections": [
+    {
+      "id": "market_overview",
+      "title_en": "Market overview",
+      "body_en": "This is a sample brief showing the daily format. Bitcoin spent the last 24 hours consolidating in a tight range after Wednesday's push higher, while Ethereum held its ground above the level it reclaimed earlier in the week. Volumes were unremarkable — the market is waiting rather than deciding."
+    },
+    {
+      "id": "btc_analysis",
+      "title_en": "Bitcoin",
+      "body_en": "Structure remains constructive: the sequence of higher lows from late June is intact, and yesterday's pullback stopped exactly where buyers stepped in twice before. The level to watch above is the early-July swing high; losing the week's low would put the range back in play."
+    },
+    {
+      "id": "eth_analysis",
+      "title_en": "Ethereum",
+      "body_en": "ETH continues to track BTC with slightly less energy. It is holding the reclaimed level but hasn't attracted follow-through buying. Relative strength against BTC is flat — no rotation signal either way yet."
+    },
+    {
+      "id": "sentiment",
+      "title_en": "Sentiment & news",
+      "body_en": "News flow was quiet and slightly positive: continued ETF inflows and no negative regulatory headlines. Funding rates are near neutral — traders are not leaning aggressively in either direction, which usually means the next impulse sets the tone."
+    },
+    {
+      "id": "risk_flags",
+      "title_en": "Risk flags",
+      "body_en": "Weekend liquidity begins tonight: moves can stretch further than they should on thin order books. US macro data lands Tuesday — expect positioning to lighten into it."
+    },
+    {
+      "id": "watchlist",
+      "title_en": "Today's watchlist",
+      "body_en": "1) BTC reaction if the early-July high is tested. 2) ETH/BTC ratio — a push higher would signal risk appetite broadening. 3) Funding rates flipping meaningfully positive, which would flag crowded longs."
+    }
+  ]
+}
