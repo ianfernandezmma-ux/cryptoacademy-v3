@@ -142,9 +142,12 @@ def evaluate_patchtst(
     import torch
     from sklearn.metrics import matthews_corrcoef
 
+    from cryptoacademy.labels.generate import DEFAULT_BARRIER_MULT
+
     c = {**DL_DEFAULTS, **(cfg or {})}
+    bm = barrier_mult if barrier_mult is not None else DEFAULT_BARRIER_MULT
     trial_cfg = {"model": "patchtst-clf", "cfg": c, "n_splits": n_splits,
-                 "embargo_days": embargo_days, "barrier_mult": barrier_mult}
+                 "embargo_days": embargo_days, "barrier_mult": bm}
     register_trial("4.4", "patchtst", horizon, trial_cfg)
     _set_deterministic(c["seed"])
 

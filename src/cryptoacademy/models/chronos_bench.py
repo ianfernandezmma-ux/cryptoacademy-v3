@@ -32,7 +32,7 @@ def _prob_up(quantile_row: np.ndarray, last_close: float) -> float:
     if last_close <= v[0]:
         return 1.0 - q[0] / 2
     if last_close >= v[-1]:
-        return q[-1] / 20  # ~0.05/2: nearly all mass below
+        return (1.0 - q[-1]) / 2  # symmetric tail mass above the top quantile
     level = float(np.interp(last_close, v, q))
     return 1.0 - level
 

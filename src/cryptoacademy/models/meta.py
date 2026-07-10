@@ -2,16 +2,18 @@
 the primary's directional call will be profitable, used to filter false
 positives and size positions (AFML §3.6; Joubert JFDS series).
 
-Construction (leak-hygiene notes inline):
-1. OOF primary: LightGBM (best 4.2 config) predicts each event's direction
-   out-of-fold under PurgedKFold — an event's primary signal never comes from
-   a model that saw it.
-2. Meta labels: triple_barrier re-run with side = primary's OOF call, on the
-   SAME event t0s and sigma; binary "did the call make money" (stop -> 0).
-3. Secondary: logistic regression on <=8 slow features + the primary's OOF
-   probability, evaluated under the SAME purged folds. Per the evidence, the
-   meta layer should improve precision/drawdown, not total return — we report
-   precision uplift at fixed coverage, per fold and per year.
+Construction (leak-hygiene per the 4.4 adversarial audit):
+1. TEST-side primary signal: outer OOF under PurgedKFold — the event's fold
+   was the test fold, so no model that produced it saw the event.
+2. TRAIN-side primary signal: NESTED inner OOF computed strictly within each
+   outer training fold (audit M1: the outer OOF of a train event came from a
+   primary that trained on the current TEST fold — optimistic contamination
+   of the secondary's calibration).
+3. Meta labels: with symmetric barriers, ret/touch are side-independent, so
+   "did the call win" = (side * ret) > 0 exactly — no barrier re-run needed.
+4. Secondary: logistic regression on <=8 slow features + the primary
+   probability; uplift metrics compare ONLY folds where the gated bucket is
+   valid (audit M2: mismatched fold subsets overstated uplift).
 
 Every configuration goes through the registry (phase 4.4).
 """
@@ -22,10 +24,7 @@ import logging
 from datetime import timedelta
 
 import numpy as np
-import polars as pl
 
-from cryptoacademy import config
-from cryptoacademy.labels.core import TripleBarrierConfig, daily_vol_on_hourly, triple_barrier
 from cryptoacademy.models.dataset import build_training_frame
 from cryptoacademy.models.train import BASE_PARAMS, block_features
 from cryptoacademy.validation.cv import PurgedKFold
@@ -40,47 +39,27 @@ META_FEATURES = [
 HORIZON_BARS = {"24h": 24, "96h": 96}
 
 
-def _oof_primary(
-    df: pl.DataFrame, feats: list[str], params: dict, n_splits: int, embargo_days: int
+def _purged_oof(
+    x: np.ndarray,
+    y: np.ndarray,
+    w: np.ndarray,
+    t0: np.ndarray,
+    t1: np.ndarray,
+    params: dict,
+    n_splits: int,
+    embargo_days: int,
 ) -> np.ndarray:
-    """Out-of-fold P(up) for every event under purged CV. Events never scored
-    by a model that trained on them; events purged from every fold keep NaN."""
+    """Out-of-fold P(up) under purged CV over the given (sub)set of events.
+    Every event lands in exactly one test fold, so the output has no NaNs."""
     import lightgbm as lgb
 
-    x = df.select(feats).to_numpy().astype(np.float64)
-    y = (df["label"].to_numpy() == 1).astype(int)
-    w = df["sample_weight"].to_numpy()
-    t0 = df["t0_time"].to_numpy()
-    t1 = df["t1_time"].to_numpy()
-    oof = np.full(len(df), np.nan)
+    oof = np.full(len(y), np.nan)
     cv = PurgedKFold(n_splits=n_splits, embargo=timedelta(days=embargo_days))
     for train_idx, test_idx in cv.split(t0, t1):
         model = lgb.LGBMClassifier(**params)
         model.fit(x[train_idx], y[train_idx], sample_weight=w[train_idx])
         oof[test_idx] = model.predict_proba(x[test_idx])[:, 1]
     return oof
-
-
-def _meta_labels_for_asset(
-    asset: str, horizon: str, events: pl.DataFrame, side: np.ndarray, barrier_mult: float
-) -> np.ndarray:
-    """Re-run the triple barrier with the primary's side on this asset's events."""
-    meta = config.load_assets()[asset]
-    hourly = pl.read_parquet(
-        config.RAW_DIR / "klines" / asset / "spot" / f"{meta['spot_symbol']}_1h.parquet"
-    ).sort("open_time")
-    close = hourly["close"].to_numpy()
-    sigma = daily_vol_on_hourly(close)
-    cfg = TripleBarrierConfig(
-        pt_mult=barrier_mult, sl_mult=barrier_mult, horizon_bars=HORIZON_BARS[horizon]
-    )
-    out = triple_barrier(
-        hourly["high"].to_numpy(), hourly["low"].to_numpy(), close,
-        events["t0_idx"].to_numpy(), sigma, cfg, side=side,
-    )
-    # triple_barrier drops nothing here (same event set that survived labeling)
-    assert len(out) == len(events), "meta relabeling changed the event set"
-    return out["label"].to_numpy()
 
 
 def run_meta_labeling(
@@ -99,82 +78,94 @@ def run_meta_labeling(
 
     bm = barrier_mult if barrier_mult is not None else DEFAULT_BARRIER_MULT
     p = dict(params or BASE_PARAMS)
+
+    df, all_feats = build_training_frame(horizon, barrier_mult)
+    df = df.sort("t0_time")
+    feats = block_features(all_feats, ["price", "derivatives", "onchain", "macro", "news"])
+    xs_cols = [c for c in META_FEATURES if c in df.columns]
     trial_cfg = {
         "params": p, "barrier_mult": bm, "n_splits": n_splits,
         "embargo_days": embargo_days, "meta_threshold": meta_threshold,
-        "meta_features": META_FEATURES,
+        "meta_features": xs_cols,  # the columns actually used (audit M5)
+        "nested_oof": True,
     }
     register_trial("4.4", "meta-labeling", horizon, trial_cfg)
 
-    df, all_feats = build_training_frame(horizon, barrier_mult)
-    feats = block_features(all_feats, ["price", "derivatives", "onchain", "macro", "news"])
-    df = df.sort("t0_time").with_row_index("_row")
-
-    oof = _oof_primary(df, feats, p, n_splits, embargo_days)
-    scored = ~np.isnan(oof)
-    side = np.where(oof >= 0.5, 1, -1)
-
-    # meta labels per asset on the same events
-    meta_y = np.full(len(df), -1)
-    for asset in df["asset"].unique().to_list():
-        mask = (df["asset"] == asset).to_numpy()
-        events = df.filter(pl.col("asset") == asset)
-        meta_y[mask] = _meta_labels_for_asset(asset, horizon, events, side[mask], bm)
-
-    # secondary model under the same purged folds
-    xs_cols = [c for c in META_FEATURES if c in df.columns]
-    x_meta = np.column_stack([oof, df.select(xs_cols).to_numpy().astype(np.float64)])
-    x_meta = np.nan_to_num(x_meta, nan=0.0)  # logistic can't take NaN; 0 = z-neutral
+    x = df.select(feats).to_numpy().astype(np.float64)
+    y = (df["label"].to_numpy() == 1).astype(int)
+    w = df["sample_weight"].to_numpy()
     t0 = df["t0_time"].to_numpy()
     t1 = df["t1_time"].to_numpy()
     ret = df["ret"].to_numpy()
+    x_slow = np.nan_to_num(
+        df.select(xs_cols).to_numpy().astype(np.float64), nan=0.0
+    )  # elementwise constant impute; features are z-scores where 0 is neutral
+
+    # clean TEST-side signal: outer OOF (event's own fold was the test fold)
+    outer_oof = _purged_oof(x, y, w, t0, t1, p, n_splits, embargo_days)
 
     fold_rows = []
     cv = PurgedKFold(n_splits=n_splits, embargo=timedelta(days=embargo_days))
     for fold_i, (train_idx, test_idx) in enumerate(cv.split(t0, t1)):
-        train_idx = train_idx[scored[train_idx]]
-        test_idx = test_idx[scored[test_idx]]
-        if len(train_idx) < 100 or len(test_idx) < 20:
-            continue
-        clf = LogisticRegression(max_iter=1000, C=0.5)
-        clf.fit(x_meta[train_idx], meta_y[train_idx])
-        p_win = clf.predict_proba(x_meta[test_idx])[:, 1]
+        # TRAIN-side signal: inner OOF restricted to this training fold
+        # (audit M1 — the outer OOF of train events was produced by primaries
+        # that saw this test fold)
+        inner_oof = _purged_oof(
+            x[train_idx], y[train_idx], w[train_idx], t0[train_idx], t1[train_idx],
+            p, max(2, n_splits - 1), embargo_days,
+        )
+        side_tr = np.where(inner_oof >= 0.5, 1, -1)
+        meta_y_tr = ((side_tr * ret[train_idx]) > 0).astype(int)
+        if meta_y_tr.sum() in (0, len(meta_y_tr)):
+            continue  # degenerate fold
 
-        side_ret = side[test_idx] * ret[test_idx]  # primary's per-event PnL
-        base_hit = float((side_ret > 0).mean())
+        clf = LogisticRegression(max_iter=1000, C=0.5)
+        clf.fit(np.column_stack([inner_oof, x_slow[train_idx]]), meta_y_tr)
+
+        side_te = np.where(outer_oof[test_idx] >= 0.5, 1, -1)
+        meta_y_te = ((side_te * ret[test_idx]) > 0).astype(int)
+        p_win = clf.predict_proba(
+            np.column_stack([outer_oof[test_idx], x_slow[test_idx]])
+        )[:, 1]
+
+        side_ret = side_te * ret[test_idx]
         keep = p_win >= meta_threshold
-        gated_hit = float((side_ret[keep] > 0).mean()) if keep.sum() >= 10 else None
+        valid = keep.sum() >= 10
         try:
-            auc = float(roc_auc_score(meta_y[test_idx], p_win))
+            auc = float(roc_auc_score(meta_y_te, p_win))
         except ValueError:
             auc = None
         fold_rows.append(
             {
                 "fold": fold_i, "n_test": len(test_idx),
-                "primary_hit": base_hit,
-                "meta_gated_hit": gated_hit,
+                "primary_hit": float((side_ret > 0).mean()),
+                "meta_gated_hit": float((side_ret[keep] > 0).mean()) if valid else None,
                 "coverage": float(keep.mean()),
                 "meta_auc": auc,
                 "primary_mean_ret": float(side_ret.mean()),
-                "gated_mean_ret": float(side_ret[keep].mean()) if keep.sum() >= 10 else None,
+                "gated_mean_ret": float(side_ret[keep].mean()) if valid else None,
             }
         )
 
-    def _mean(key: str) -> float | None:
-        vals = [r[key] for r in fold_rows if r[key] is not None]
+    # uplift over the SAME folds only (audit M2)
+    paired = [r for r in fold_rows if r["meta_gated_hit"] is not None]
+
+    def _mean(rows: list[dict], key: str) -> float | None:
+        vals = [r[key] for r in rows if r[key] is not None]
         return float(np.mean(vals)) if vals else None
 
     metrics = {
         "folds": fold_rows,
-        "mean_primary_hit": _mean("primary_hit"),
-        "mean_gated_hit": _mean("meta_gated_hit"),
-        "mean_coverage": _mean("coverage"),
-        "mean_meta_auc": _mean("meta_auc"),
+        "n_paired_folds": len(paired),
+        "mean_primary_hit_paired": _mean(paired, "primary_hit"),
+        "mean_gated_hit": _mean(paired, "meta_gated_hit"),
+        "mean_coverage": _mean(fold_rows, "coverage"),
+        "mean_meta_auc": _mean(fold_rows, "meta_auc"),
         "precision_uplift": (
-            (_mean("meta_gated_hit") or 0) - (_mean("primary_hit") or 0)
-            if _mean("meta_gated_hit") is not None else None
+            _mean(paired, "meta_gated_hit") - _mean(paired, "primary_hit")
+            if paired else None
         ),
-        "n_events_scored": int(scored.sum()),
+        "n_events": len(df),
     }
     log_trial("4.4", "meta-labeling", horizon, trial_cfg, metrics)
     log.info("meta-labeling %s: %s", horizon, {k: v for k, v in metrics.items() if k != "folds"})
