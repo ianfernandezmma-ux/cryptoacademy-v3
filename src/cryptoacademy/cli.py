@@ -315,6 +315,21 @@ def run_meta(meta_threshold: float = 0.55) -> None:
 
 
 @app.command()
+def run_patchtst() -> None:
+    """Phase 4.4: PatchTST classifier challenger, both horizons, purged CV."""
+    _setup_logging("train")
+    import json
+
+    from cryptoacademy.models.dl import evaluate_patchtst
+
+    out = {}
+    for horizon in ("24h", "96h"):
+        m = evaluate_patchtst(horizon)
+        out[horizon] = {k: v for k, v in m.items() if k != "folds"}
+    typer.echo(json.dumps(out, indent=2, default=str))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")

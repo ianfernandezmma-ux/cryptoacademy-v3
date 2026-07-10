@@ -20,6 +20,8 @@ dependencies = [
     "optuna>=4.9.0",
     "scikit-learn>=1.9.0",
     "shap>=0.52.0",
+    "torch>=2.13.0",
+    "chronos-forecasting>=2.0",
 ]
 
 [dependency-groups]
@@ -54,3 +56,11 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
