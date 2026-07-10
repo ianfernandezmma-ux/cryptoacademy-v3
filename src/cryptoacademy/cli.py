@@ -330,6 +330,18 @@ def run_patchtst() -> None:
 
 
 @app.command()
+def run_chronos() -> None:
+    """Phase 4.4: Chronos-2 zero-shot direction benchmark, both horizons."""
+    _setup_logging("train")
+    import json
+
+    from cryptoacademy.models.chronos_bench import evaluate_chronos
+
+    out = {h: evaluate_chronos(h) for h in ("24h", "96h")}
+    typer.echo(json.dumps(out, indent=2, default=str))
+
+
+@app.command()
 def build_matrix() -> None:
     """Assemble the per-asset feature matrices (PIT as-of joins + global shift)."""
     _setup_logging("matrix")
