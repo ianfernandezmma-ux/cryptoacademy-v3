@@ -389,27 +389,18 @@
   padding-top: clamp(40px, 7vw, 80px);
   padding-bottom: clamp(40px, 6vw, 70px);
 }
+/* Single dark-studio image graded to match the coin video's own background,
+   so the masked coin melts into it. Left edge darkened for text, bottom
+   fades into the page background. */
 .ca-hero-bg {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to bottom, rgba(8, 10, 9, 0.25) 0%, rgba(8, 10, 9, 0.55) 70%, var(--bg) 100%),
+    linear-gradient(to bottom, transparent 0%, transparent 62%, var(--bg) 100%),
+    linear-gradient(to right, rgba(8, 10, 9, 0.5) 0%, transparent 45%),
     url("/assets/hero-bg.webp") center / cover no-repeat,
     var(--bg);
   pointer-events: none;
-}
-.ca-hero-dots {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
-  background-size: 28px 28px;
-  mask-image: radial-gradient(
-    ellipse 70% 60% at 50% 50%,
-    black 30%,
-    transparent 80%
-  );
-  pointer-events: none;
-  opacity: 0.6;
 }
 .ca-hero-grid {
   position: relative;
@@ -431,8 +422,8 @@
 .ca-hero-coin {
   position: relative;
 }
-/* The coin video/poster is rendered on the page's own background color,
-   with a feathered radial mask so the square frame melts into the page. */
+/* The coin video's background matches hero-bg.webp, so only a wide, soft
+   feather is needed to hide the square frame edge. */
 .ca-hero-coin video,
 .ca-hero-coin img {
   width: 100%;
@@ -441,8 +432,8 @@
   object-fit: cover;
   display: block;
   margin: 0 auto;
-  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 55%, transparent 74%);
-  mask-image: radial-gradient(circle at 50% 50%, black 55%, transparent 74%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 42%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 50%, black 42%, transparent 72%);
   animation: ca-float 7s ease-in-out infinite;
 }
 .ca-hero-coin::before {
