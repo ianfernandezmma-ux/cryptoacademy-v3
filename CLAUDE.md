@@ -43,11 +43,14 @@ master plan, partly superseded by the handoff).
 
 ## Pending (the remaining Phase 4.4 items → then Phase 4.5)
 
-1. **GDELT backfill completing** (hourly scheduled task; ~2020-11 reached of
-   2020→2026). When `pending_days()` in `news/gdelt.py` hits zero:
-   run `backfill-regime` (resumable) → `validate-regime` on the full series →
-   re-run news-block ablation (`run-sweep` or targeted `evaluate_config`) →
-   with-regime vs without-regime comparison (formal close of 4.3 gate 2).
+1. **GDELT backfill DONE (2026-07-11)** — 2,383 days / 2.13M rows, verified,
+   manifest + real-outage notes (2025-06-15→07-01 is empty AT THE SOURCE) in
+   `docs/gdelt-dataset.md`; backup in OneDrive/CryptoAcademy-backups. NOW
+   RUNNABLE: `backfill-regime` (resumable) → `validate-regime` on the full
+   series → re-run news-block ablation (`run-sweep` or targeted
+   `evaluate_config`) → with-regime vs without-regime comparison (formal
+   close of 4.3 gate 2). LLM re-scoring of the RSS corpus still draining
+   (~1k articles left) — independent of the GDELT-based work.
 2. Ensemble check (LightGBM + PatchTST probability averaging) — protocol
    requires testing it; registered like everything else.
 3. Phase 4.5 (docs/phase4-plan.md): CPCV Sharpe distributions + DSR with real
