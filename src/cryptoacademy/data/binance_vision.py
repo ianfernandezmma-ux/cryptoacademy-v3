@@ -13,7 +13,7 @@ from __future__ import annotations
 import io
 import logging
 import zipfile
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import polars as pl
@@ -106,9 +106,29 @@ def download_klines(
                 continue
             frames.append(_kline_df(_read_zip_csv(content, KLINE_COLS)))
             log.info("%s %s %s: ok", asset, market, month)
-        # Top up the current month from REST (1000-bar pages).
+        # Top up from REST (1000-bar pages). Start at the last bar we already
+        # hold, NOT the 1st of the current month: in the first days of a month
+        # the previous month's zip is not published yet and its tail hours
+        # would silently go missing — a partial D-1 bar exactly at the
+        # decision boundary.
         rest = REST_SPOT if market == "spot" else REST_FUT
-        start_ms = int(datetime(now.year, now.month, 1, tzinfo=UTC).timestamp() * 1000)
+        existing_path = (
+            config.RAW_DIR / "klines" / asset / market.replace("/", "_")
+            / f"{symbol}_{interval}.parquet"
+        )
+        month_start = datetime(now.year, now.month, 1, tzinfo=UTC)
+        if existing_path.exists():
+            last_held = pl.read_parquet(existing_path, columns=["open_time"])[
+                "open_time"
+            ].max()
+            if last_held.tzinfo is None:
+                last_held = last_held.replace(tzinfo=UTC)
+            top_up_from = min(month_start, last_held)
+        else:
+            # fresh clone: the previous month's zip may not exist yet either
+            prev = (month_start - timedelta(days=1)).replace(day=1)
+            top_up_from = prev
+        start_ms = int(top_up_from.timestamp() * 1000)
         rows: list[list] = []
         while True:
             resp = client.get(

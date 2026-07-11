@@ -82,6 +82,7 @@ def evaluate_config(
     tag: str = "",
     barrier_mult: float | None = None,
     features_override: list[str] | None = None,
+    phase: str = "4.2",
 ) -> dict:
     """Purged-CV evaluation of one configuration. Registers + logs the trial.
 
@@ -100,15 +101,25 @@ def evaluate_config(
         "embargo_days": embargo_days, "barrier_mult_requested": barrier_mult,
         "features_override": sorted(features_override) if features_override else None,
     }
-    register_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, intent)
+    register_trial(phase, f"lgbm{'-' + tag if tag else ''}", horizon, intent)
     df, all_features = build_training_frame(horizon, barrier_mult)
     feats = features_override or block_features(all_features, blocks)
     if not feats:
         raise ValueError(f"no features for blocks {blocks}")
+    import hashlib
+
     realized = {
         "n_features": len(feats),
         "barrier_mult": float(df["barrier_mult"][0]),
         "cusum_k": float(df["cusum_k"][0]),
+        "n_events": len(df),
+        # the resolved feature universe is data-dependent (all-null columns
+        # get dropped, blocks resolve to whatever exists that day); the
+        # fingerprint makes 'same config, different features' visible so
+        # Phase 4.5 can count selection identities honestly
+        "feature_set_hash": hashlib.sha256(
+            ",".join(sorted(feats)).encode()
+        ).hexdigest()[:12],
     }
 
     df = df.sort("t0_time")
@@ -147,7 +158,7 @@ def evaluate_config(
     }
     metrics = {"folds": fold_metrics, "realized": realized, **means}
     # completion row shares the intent's identity hash (same config dict)
-    log_trial("4.2", f"lgbm{'-' + tag if tag else ''}", horizon, intent, metrics)
+    log_trial(phase, f"lgbm{'-' + tag if tag else ''}", horizon, intent, metrics)
     log.info("%s %s blocks=%s -> %s", horizon, tag or "lgbm", blocks, means)
     return metrics
 

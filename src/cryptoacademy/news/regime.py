@@ -38,7 +38,11 @@ log = logging.getLogger(__name__)
 
 OLLAMA = "http://localhost:11434/api/chat"
 MODEL = "qwen3.6:35b-a3b"
-PROMPT_VERSION = "v3"
+# v4 (audit 2026-07-11): slugs now pass through the gazetteer anonymizer —
+# year-stripping alone removes only ~7% of the measured LLM hindsight gap,
+# so raw entity names (ftx, terra, svb...) would hindsight-inflate the
+# historical regime scores that gate the 4.3 with/without-regime comparison.
+PROMPT_VERSION = "v4"
 K_CRYPTO, K_MACRO = 15, 7
 REGIME_PATH = config.DATA_DIR / "features" / "regime_daily.parquet"
 
@@ -117,12 +121,16 @@ def headlines_for_day(day: date) -> tuple[list[str], list[str]]:
         toks = set(slug.split())
         if any(_jaccard(toks, t) > 0.55 for t in seen):
             continue
+        # anonymize AFTER the crypto/macro split (the split needs raw entity
+        # keywords) and after dedup (Jaccard runs on raw tokens)
+        from cryptoacademy.news.anonymize import anonymize
+
         if CRYPTO_KW.search(slug) and len(crypto) < K_CRYPTO:
             seen.append(toks)
-            crypto.append(slug)
+            crypto.append(anonymize(slug)[0])
         elif not CRYPTO_KW.search(slug) and len(macro) < K_MACRO:
             seen.append(toks)
-            macro.append(slug)
+            macro.append(anonymize(slug)[0])
         if len(crypto) >= K_CRYPTO and len(macro) >= K_MACRO:
             break
     return crypto, macro
@@ -227,9 +235,13 @@ def backfill_regime(max_days: int = 5000) -> dict:
     (keyed by date); appends to regime_daily.parquet atomically."""
     have: set[date] = set()
     existing: pl.DataFrame | None = None
+    tag = f"{MODEL}|{PROMPT_VERSION}"
     if REGIME_PATH.exists():
         existing = pl.read_parquet(REGIME_PATH)
-        have = set(existing["date"].to_list())
+        # only days scored with the CURRENT prompt version count as done —
+        # a version bump re-scores the old corpus (unique keep='last' below
+        # replaces stale rows)
+        have = set(existing.filter(pl.col("model") == tag)["date"].to_list())
     gdelt_days = sorted(
         datetime.strptime(f.stem.removeprefix("gkg_"), "%Y%m%d").date()
         for f in (config.RAW_DIR / "gdelt").glob("*/gkg_*.parquet")
@@ -269,9 +281,11 @@ def backfill_regime(max_days: int = 5000) -> dict:
             if len(rows) % 50 == 0:
                 log.info("regime backfill: %d/%d days scored", len(rows), len(todo))
     new = pl.DataFrame(rows)
+    # sort by (date, scored_at) so keep='last' deterministically prefers the
+    # newest scoring of a date — concat order alone is not contractual
     out = (
         pl.concat([existing, new], how="diagonal_relaxed") if existing is not None else new
-    ).sort("date").unique(subset=["date"], keep="last")
+    ).sort(["date", "scored_at_utc"]).unique(subset=["date"], keep="last")
     REGIME_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = REGIME_PATH.with_suffix(".tmp")
     out.write_parquet(tmp)
@@ -283,16 +297,33 @@ def backfill_regime(max_days: int = 5000) -> dict:
 
 def smoothed_regime_features(regime: pl.DataFrame) -> pl.DataFrame:
     """3-day median smoothing (per pilot recommendation) + day-over-day delta.
-    Keyed for matrix assembly: usable at decision day D+1."""
-    r = regime.sort("date")
+    Keyed for matrix assembly: usable at decision day D+1.
+
+    Windows are DATE-based, not row-based: the regime series has holes
+    (zero-headline days, failed classifications, the 2025-06 GDELT source
+    outage), and a row-based median would silently blend values weeks apart
+    across a gap. The delta is nulled across gaps > 1 day for the same
+    reason, and the gap size is emitted as an explicit staleness signal."""
+    r = regime.sort("date").with_columns(
+        pl.col("date").cast(pl.Datetime(time_zone="UTC")).alias("_dt")
+    )
+    gap_days = pl.col("_dt").diff().dt.total_days()
     out = r.select(
-        (pl.col("date").cast(pl.Datetime(time_zone="UTC")) + pl.duration(days=1)).alias(
-            "decision_day"
-        ),
-        pl.col("risk_appetite").rolling_median(3, min_samples=1).alias("regime_risk_appetite"),
-        pl.col("crypto_stress").rolling_median(3, min_samples=1).alias("regime_crypto_stress"),
-        pl.col("macro_stress").rolling_median(3, min_samples=1).alias("regime_macro_stress"),
-        pl.col("risk_appetite").diff().alias("regime_ra_delta"),
+        (pl.col("_dt") + pl.duration(days=1)).alias("decision_day"),
+        pl.col("risk_appetite")
+        .rolling_median_by("_dt", window_size="3d")
+        .alias("regime_risk_appetite"),
+        pl.col("crypto_stress")
+        .rolling_median_by("_dt", window_size="3d")
+        .alias("regime_crypto_stress"),
+        pl.col("macro_stress")
+        .rolling_median_by("_dt", window_size="3d")
+        .alias("regime_macro_stress"),
+        pl.when(gap_days <= 1)
+        .then(pl.col("risk_appetite").diff())
+        .otherwise(None)
+        .alias("regime_ra_delta"),
         pl.col("confidence").alias("regime_confidence"),
+        gap_days.alias("regime_gap_days"),
     )
     return out

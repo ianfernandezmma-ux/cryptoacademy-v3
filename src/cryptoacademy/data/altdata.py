@@ -208,9 +208,20 @@ def download_cot() -> pl.DataFrame:
         pl.col("report_date_as_yyyy_mm_dd").str.to_datetime("%Y-%m-%dT%H:%M:%S%.f", strict=False)
         .dt.replace_time_zone("UTC").alias("report_date"),
     ).drop("report_date_as_yyyy_mm_dd")
-    # Publication embargo baked into the table itself.
+    # Publication embargo baked into the table itself: Friday 15:30 ET of the
+    # same week, DST-aware (a flat +3d20h was 30 min EARLY all winter).
+    # Holiday-delayed releases (a few weeks/year, published the next business
+    # day) are still stamped early by this rule — accepted, documented risk;
+    # the as-of join at midnight granularity bounds the error to <=3 decision
+    # days on those weeks.
     df = df.with_columns(
-        (pl.col("report_date") + pl.duration(days=3, hours=20)).alias("published_at_utc")
+        (
+            pl.col("report_date").dt.replace_time_zone(None)
+            + pl.duration(days=3, hours=15, minutes=30)
+        )
+        .dt.replace_time_zone("America/New_York")
+        .dt.convert_time_zone("UTC")
+        .alias("published_at_utc")
     ).sort("report_date")
     dest = config.RAW_DIR / "positioning"
     dest.mkdir(parents=True, exist_ok=True)

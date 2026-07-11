@@ -72,7 +72,17 @@ def build_matrix(asset: str) -> pl.DataFrame:
     bars_1h = pl.read_parquet(
         config.RAW_DIR / "klines" / asset / "spot" / f"{sym}_1h.parquet"
     )
-    daily = add_price_features(to_daily(bars_1h))
+    daily = to_daily(bars_1h)
+    # a mid-day build must never turn today's partial bar into a decision row
+    # (understated high/low/volume would feed every rolling feature). The
+    # date-based cut also covers the 23:00-24:00 window where 24 bars exist
+    # but the last one is still in progress; interior incomplete days stay —
+    # they are flagged, not fabricated.
+    from datetime import UTC, datetime
+
+    today = datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    daily = daily.filter(pl.col("date") < today)
+    daily = add_price_features(daily)
     spine = _decision_spine(daily)
 
     # derivatives (perp market)
@@ -87,6 +97,10 @@ def build_matrix(asset: str) -> pl.DataFrame:
             (pl.col("date") + pl.duration(days=1)).alias("decision_day")
         )
         spine = spine.join(metrics.drop("date"), on="decision_day", how="left")
+        # days with no metrics row at all (ETH pre-2021-12, feed outages) must
+        # read as missing=True, not null — the MNAR flag exists for that era
+        if "positioning_missing" in spine.columns:
+            spine = spine.with_columns(pl.col("positioning_missing").fill_null(True))
 
     dvol_path = config.RAW_DIR / "options" / f"{asset}_dvol.parquet"
     if dvol_path.exists():
@@ -147,10 +161,41 @@ def build_matrix(asset: str) -> pl.DataFrame:
     news_frames = [df for df in (gdelt_era_daily(asset), llm_era_daily(asset)) if not df.is_empty()]
     if news_frames:
         news = pl.concat(news_frames, how="diagonal").sort("decision_day")
+        # era cutover: while both eras cover a decision day, keep the GDELT
+        # row (era_llm=0) — training history is GDELT-era and live features
+        # must stay in-distribution; the LLM era takes over automatically
+        # when GDELT stops. Without this the left join duplicates spine rows.
+        news = (
+            news.sort(["decision_day", "era_llm"])
+            .unique(subset=["decision_day"], keep="first")
+            .sort("decision_day")
+        )
         news = abnormal_attention(news)
         spine = spine.join(news.drop("asset"), on="decision_day", how="left")
 
     spine = spine.with_columns(pl.lit(asset).alias("asset"))
+
+    # duplicate decision days would silently multiply label rows downstream
+    if spine["decision_day"].n_unique() != len(spine):
+        raise RuntimeError(f"{asset} matrix has duplicate decision_day rows")
+
+    # join-coverage report: silent misalignment (a renamed column, a changed
+    # timestamp convention) shows up here as a dead block, not months later
+    # as a mysterious null ablation
+    for block, prefix in [
+        ("funding", "funding_"), ("positioning", "oi_"), ("iv", "iv_"),
+        ("onchain", "oc_"), ("macro", "macro_"), ("news", "news_"),
+    ]:
+        cols = [c for c in spine.columns if c.startswith(prefix)]
+        if cols:
+            recent = spine.sort("decision_day").tail(30)
+            null_frac = float(recent[cols[0]].null_count()) / max(len(recent), 1)
+            if null_frac > 0.5:
+                log.warning(
+                    "%s matrix: block '%s' is %.0f%% null over the last 30 days",
+                    asset, block, 100 * null_frac,
+                )
+
     dest = config.DATA_DIR / "features"
     dest.mkdir(parents=True, exist_ok=True)
     spine.write_parquet(dest / f"matrix_{asset}.parquet")

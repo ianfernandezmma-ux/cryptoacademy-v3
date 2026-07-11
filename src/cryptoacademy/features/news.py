@@ -72,12 +72,14 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
     if not config.NEWS_DB_PATH.exists():
         return pl.DataFrame()
     conn = None
-    for attempt in range(6):  # collector holds the write lock ~5 min per run
+    # the collector can hold the write lock across its multi-minute network
+    # loop; 30x20s matches the worst waits observed in production (CLAUDE.md)
+    for attempt in range(30):
         try:
             conn = duckdb.connect(str(config.NEWS_DB_PATH), read_only=True)
             break
         except duckdb.IOException:
-            if attempt == 5:
+            if attempt == 29:
                 raise
             time.sleep(20)
     assert conn is not None
@@ -88,12 +90,20 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
                s.is_price_report, s.duplicate_of IS NOT NULL AS is_dup,
                s.scored_at_utc
         FROM articles a JOIN article_scores s USING (url_hash, revision_no)
+        -- dead-lettered articles carry no usable score
+        WHERE s.model != 'failed'
+          -- per-asset feature: article must tag this asset (gdelt era filters
+          -- by asset too; without this BTC and ETH got identical LLM features).
+          -- dedup rows carry assets=NULL and must be KEPT: duplicate coverage
+          -- is the attention/volume signal (NULL LIKE x is NULL -> dropped)
+          AND (s.assets LIKE ? OR s.duplicate_of IS NOT NULL)
         -- one row per article: the latest scored revision (audit M-5;
         -- edited breaking news must not count twice)
         QUALIFY row_number() OVER (
             PARTITION BY a.url_hash ORDER BY a.revision_no DESC
         ) = 1
-        """
+        """,
+        [f"%{asset.upper()}%"],
     ).pl()
     conn.close()
     if rows.is_empty():
@@ -117,6 +127,15 @@ def llm_era_daily(asset: str) -> pl.DataFrame:
             pl.col("scored_at_utc").dt.replace_time_zone("UTC") + pl.duration(minutes=5),
         ).alias("usable_at")
     )
+    # audit 2026-07-11: a score that arrived more than LOOKBACK after the
+    # article became knowable can never contribute legitimately — its news
+    # value has decayed. Without this filter, a bulk re-scoring campaign
+    # injects months-old articles into CURRENT decision days as fresh news.
+    rows = rows.filter(
+        (pl.col("usable_at") - pl.col("pit_usable_at")) <= LOOKBACK
+    )
+    if rows.is_empty():
+        return pl.DataFrame()
     e = _explode_to_decision_days(rows, "usable_at")
     scored = e.filter(~pl.col("is_dup"))
     sent = scored.filter(~pl.col("is_price_report"))
@@ -168,11 +187,15 @@ def gdelt_era_daily(asset: str) -> pl.DataFrame:
     for f in files:
         try:
             frames.append(pl.read_parquet(f))
-        except Exception:  # truncated by a killed harvester: drop -> re-harvested
+        except Exception:
+            # NEVER delete from a read path (audit 2026-07-11: a transient
+            # read failure — AV scan, file lock — destroyed a verified
+            # backfill day). Log and skip; the harvester owns remediation.
             import logging
 
-            logging.getLogger(__name__).warning("corrupt gdelt file removed: %s", f)
-            f.unlink(missing_ok=True)
+            logging.getLogger(__name__).warning(
+                "unreadable gdelt file skipped (NOT deleted): %s", f
+            )
     if not frames:
         return pl.DataFrame()
     # diagonal: files harvested before the `themes` column existed get nulls
@@ -187,14 +210,19 @@ def gdelt_era_daily(asset: str) -> pl.DataFrame:
         return pl.DataFrame()
     e = _explode_to_decision_days(df, "usable_at")
 
+    # GDELT tone lives on roughly ±10 while LLM sentiment lives on ±1; the
+    # shared news_sent_*/news_dispersion columns need one scale or a tree
+    # split learned on the GDELT era is meaningless on the LLM era. A fixed
+    # constant (no data-dependent statistics) keeps the rescale causal.
+    tone = pl.col("tone") / 10.0
     one = pl.lit(1.0)
     aggs = [
-        _decayed(pl.col("tone"), one, hl).alias(f"news_sent_{k}")
+        _decayed(tone, one, hl).alias(f"news_sent_{k}")
         for k, hl in HALF_LIVES_H.items()
     ]
     aggs += [
-        (pl.col("tone") < -2.0).mean().alias("news_neg_share"),
-        pl.col("tone").std().alias("news_dispersion"),
+        (tone < -0.2).mean().alias("news_neg_share"),
+        tone.std().alias("news_dispersion"),
         pl.col("positive").mean().alias("gdelt_pos_mag"),
         pl.col("negative").mean().alias("gdelt_neg_mag"),
         pl.col("n_themes").mean().alias("gdelt_complexity"),

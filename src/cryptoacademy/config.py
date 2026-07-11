@@ -31,6 +31,14 @@ load_dotenv(PROJECT_ROOT / ".env")
 LIVE_BUFFER = timedelta(minutes=30)
 BACKFILL_BUFFER = timedelta(hours=4)
 
+# Lockbox: events from this instant onward are excluded from every training /
+# CV / selection run (build_training_frame enforces it). Opened ONCE at the
+# end of Phase 5. NOTE (audit 2026-07-11): selection during Phases 4.2-4.4 ran
+# WITHOUT this cutoff and consumed ~218 events from 2026-H1 — that period is
+# documented as a contaminated holdout in the audit; the cutoff now prevents
+# any further touching.
+LOCKBOX_START = "2026-01-01"
+
 USER_AGENT = "CryptoAcademyResearch/3.0 (+academic thesis project; contact via GitHub)"
 
 HTTP_TIMEOUT = 30.0

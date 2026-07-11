@@ -45,11 +45,19 @@ def download_coinmetrics(assets: list[str] | None = None) -> pl.DataFrame:
             "page_size": 10000,
             "paging_from": "start",
         }
+        throttled = 0
         while url:
             resp = client.get(url, params=params)
             if resp.status_code == 429:
-                time.sleep(6)
+                # cap the retries: an uncapped loop turns a persistent
+                # throttle into an indefinitely hung daily_update that never
+                # reaches its own failure alerting
+                throttled += 1
+                if throttled > 10:
+                    resp.raise_for_status()
+                time.sleep(min(6 * throttled, 60))
                 continue
+            throttled = 0
             resp.raise_for_status()
             payload = resp.json()
             rows.extend(payload["data"])
@@ -335,7 +343,22 @@ def download_etf_flows() -> pl.DataFrame:
         timeout=60.0, headers={"User-Agent": CHROME_UA}, follow_redirects=True
     ) as client:
         for asset, url in FARSIDE.items():
-            resp = client.get(url)
+            # Cloudflare blocks intermittently (403); each missed day is a
+            # PERMANENT first-print vintage gap, so retry hard and alert
+            # distinctly so a manual snapshot can still be taken in time
+            resp = None
+            for attempt in range(4):
+                resp = client.get(url)
+                if resp.status_code != 403:
+                    break
+                time.sleep(15 * (attempt + 1))
+            if resp.status_code == 403:
+                from cryptoacademy.notify import telegram
+
+                telegram.send(
+                    f"ETF flows: Farside 403 persists for {asset} — today's "
+                    "first-print vintage will be LOST unless snapped manually"
+                )
             resp.raise_for_status()
             df = _parse_farside_table(resp.text).with_columns(pl.lit(asset).alias("asset"))
             frames.append(df)

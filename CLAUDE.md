@@ -6,9 +6,10 @@ reported OOS predictions; same-day news joined to the midnight bar; real
 numbers were MCC ~0.35 / Sharpe 0.86, not the published 0.56/3.5+). v3's
 architecture exists to make that class of error impossible.
 
-**Read next, in order:** `docs/phase4-handoff.md` (current state, conventions,
-audit caveats) → `docs/phase4-plan.md` (sub-phase gates) → `PLAN.md` (original
-master plan, partly superseded by the handoff).
+**Read next, in order:** `docs/audit-2026-07-11.md` (full-code audit: 26 fixes
+applied, refuted-findings list, statistics verdicts) → `docs/plan-v3.md`
+(CURRENT execution plan) → `docs/phase4-handoff.md` (conventions, audit
+caveats) → `docs/phase4-plan.md` → `PLAN.md` (original master plan).
 
 ## The two iron rules
 
@@ -41,24 +42,26 @@ master plan, partly superseded by the handoff).
   articles (calibrated prompt v2, gazetteer-anonymized), daily risk-regime
   scores (pilot-validated classifier v3).
 
-## Pending (the remaining Phase 4.4 items → then Phase 4.5)
+## Pending — see docs/plan-v3.md (authoritative after the 2026-07-11 audit)
 
-1. **GDELT backfill DONE (2026-07-11)** — 2,383 days / 2.13M rows, verified,
-   manifest + real-outage notes (2025-06-15→07-01 is empty AT THE SOURCE) in
-   `docs/gdelt-dataset.md`; backup in OneDrive/CryptoAcademy-backups. NOW
-   RUNNABLE: `backfill-regime` (resumable) → `validate-regime` on the full
-   series → re-run news-block ablation (`run-sweep` or targeted
-   `evaluate_config`) → with-regime vs without-regime comparison (formal
-   close of 4.3 gate 2). LLM re-scoring of the RSS corpus still draining
-   (~1k articles left) — independent of the GDELT-based work.
-2. Ensemble check (LightGBM + PatchTST probability averaging) — protocol
-   requires testing it; registered like everything else.
-3. Phase 4.5 (docs/phase4-plan.md): CPCV Sharpe distributions + DSR with real
-   registry N + PBO + per-regime breakdown; **lockbox = 2026-01-01 onward,
-   enforced in code by the 4.5 loader, opened ONCE at end of Phase 5**;
-   per-fold sample weights (audit F3) before headline numbers; `daily-report`
-   command (35B writes English health/performance reports → Telegram).
-4. Phase 5 (backtest realista + paper) and Phase 6 (web) per PLAN.md.
+1. **Audit 2026-07-11 APPLIED**: 26 confirmed findings fixed (daily-update now
+   refreshes metrics/DVOL/wiki/COT + freshness gate; lockbox cutoff ENFORCED
+   in build_training_frame — 2026+ events excluded from all training; news
+   era cutover + tone/10 rescale; regime slugs anonymized, PROMPT v4;
+   rotation permutation in regime gates; dead-letter scoring; etc.). Read
+   `docs/audit-2026-07-11.md` before touching anything it names.
+2. **Lockbox reality**: 2026-01-01→07-11 was consumed by 4.2–4.4 selection —
+   report it only as a contaminated holdout; the pristine lockbox is
+   2026-07-12 → end of Phase 5, untouched by construction.
+3. **Batch A (runnable now, GPU day)**: labels v2 (hourly-grid reindex; needs
+   Ian's OK) → backfill-regime (v4, full series) → validate-regime →
+   news-block re-ablation + with/without-regime (4.3 gate-2 close) →
+   re-anchor 4.2 selections under the cutoff → ensemble check → 5-seed
+   reporting. Then Batch B = Phase 4.5 tribunal per plan-v3.
+4. **Meta-labeling claim downgraded**: pooled uplift +5.4pp, t≈1.85 — cite as
+   suggestive, never as established, until Phase-5 return streams.
+5. Phase 5 (backtest realista + paper, net-of-cost acceptance pre-registered)
+   and Phase 6 (web) per plan-v3 batches D/E.
 
 ## Layout
 

@@ -237,8 +237,10 @@ def score_pending(limit: int = 500) -> dict:
 
     results: list[list] = []
     scored = dupes = failed = 0
-    now = datetime.now(UTC).replace(tzinfo=None)
     for url_hash, rev, title, body, backfilled in pending:
+        # stamp per article, not per batch: a long run that straddles midnight
+        # must not backdate post-midnight scores into the prior decision day
+        now = datetime.now(UTC).replace(tzinfo=None)
         vec = embed([f"{title}\n{(body or '')[:500]}"])[0]
         dup_of = None
         for i, rv in enumerate(ref_vecs):
@@ -253,6 +255,13 @@ def score_pending(limit: int = 500) -> dict:
             continue
         result = score_article(title or "", body or "", anonymize_dates=bool(backfilled))
         if result is None:
+            # dead-letter: without a sentinel row the article re-enters the
+            # FIFO head every hour (3 LLM attempts each) and >= `limit`
+            # permanent failures wedge the scorer silently. llm_era_daily
+            # excludes model='failed'.
+            results.append(
+                [url_hash, rev, now, "failed", None, None, None, None, None, None, None]
+            )
             failed += 1
             continue
         results.append(
@@ -267,8 +276,8 @@ def score_pending(limit: int = 500) -> dict:
         scored += 1
 
     # Single short write transaction, with retries in case the collector holds
-    # the lock at this exact moment.
-    for attempt in range(6):
+    # the lock at this exact moment (30x20s matches worst observed hold times).
+    for attempt in range(30):
         try:
             conn = duckdb.connect(str(config.NEWS_DB_PATH))
             conn.executemany(
@@ -277,7 +286,7 @@ def score_pending(limit: int = 500) -> dict:
             conn.close()
             break
         except duckdb.IOException:
-            if attempt == 5:
+            if attempt == 29:
                 raise
             import time
 

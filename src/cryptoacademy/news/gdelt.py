@@ -103,6 +103,7 @@ def harvest_day(client: httpx.Client, day: datetime) -> int:
     """Download & filter the 96 15-min GKG files of one UTC day."""
     rows: list[dict] = []
     stamp = day.replace(hour=0, minute=0, second=0, microsecond=0)
+    failed_files = 0
     for _ in range(96):
         url = f"{GDELT_BASE}/{stamp:%Y%m%d%H%M%S}.gkg.csv.zip"
         for attempt in range(3):
@@ -119,10 +120,21 @@ def harvest_day(client: httpx.Client, day: datetime) -> int:
                     if parsed:
                         rows.append(parsed)
                 break
-            except Exception as exc:  # retry twice, then skip this 15-min file
+            except Exception as exc:  # retry twice, then count as failed
                 if attempt == 2:
+                    failed_files += 1
                     log.warning("gdelt %s failed permanently: %s", url, exc)
         stamp += timedelta(minutes=15)
+    if failed_files:
+        # file existence = day done, so writing a partial day would make it
+        # permanently indistinguishable from a quiet day; leave it pending
+        # and let the next hourly run retry the whole day (404s don't count —
+        # those are genuine GDELT outages).
+        log.warning(
+            "gdelt %s: %d/96 files failed (network) — day left pending for retry",
+            f"{day:%Y-%m-%d}", failed_files,
+        )
+        return 0
     df = pl.DataFrame(rows, schema=SCHEMA) if rows else pl.DataFrame(schema=SCHEMA)
     path = _day_path(day)
     tmp = path.with_suffix(".tmp")  # atomic: a killed process never leaves a

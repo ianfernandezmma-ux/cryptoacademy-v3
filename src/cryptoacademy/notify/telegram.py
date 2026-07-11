@@ -3,6 +3,7 @@ set in .env, so the pipeline never depends on it."""
 
 from __future__ import annotations
 
+import html
 import logging
 
 import httpx
@@ -21,11 +22,14 @@ def send(text: str) -> bool:
     try:
         resp = httpx.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"},
+            # escape: alert text routinely embeds exception strings ('<', '&'
+            # in URLs/reprs) and an unescaped char turns into a Telegram 400 —
+            # the alert most worth delivering is the one that gets dropped
+            json={"chat_id": chat_id, "text": html.escape(text), "parse_mode": "HTML"},
             timeout=15.0,
         )
         resp.raise_for_status()
         return True
     except Exception as exc:  # notifications must never break the pipeline
-        log.warning("telegram send failed: %s", exc)
+        log.error("telegram send FAILED (alert lost): %s | text: %s", exc, text[:200])
         return False

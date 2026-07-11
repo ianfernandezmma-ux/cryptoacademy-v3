@@ -157,16 +157,24 @@ def spearman_rho(x: np.ndarray, y: np.ndarray) -> float | None:
 def permutation_pvalue(
     x: np.ndarray, y: np.ndarray, rho_obs: float, n_perm: int, rng: np.random.Generator
 ) -> float:
-    """One-sided permutation p-value for H1: rho > 0 (shuffle x vs fixed y)."""
+    """One-sided permutation p-value for H1: rho > 0, via CIRCULAR ROTATION.
+
+    Both series are strongly autocorrelated (regime scores persist for days;
+    consecutive forward-vol windows share 6/7 of their data), so an iid
+    shuffle destroys x's serial structure and makes the null too narrow —
+    anti-conservative p-values (audit 2026-07-11). Rotating x by a random
+    offset preserves its full autocorrelation while breaking the alignment
+    with y, which is the correct null for 'does x LINE UP with y'."""
     ry = _midranks(y)
     rx = _midranks(x)
     rxc = rx - rx.mean()
     ryc = ry - ry.mean()
     denom = rx.std() * ry.std() * len(x)
+    n = len(x)
     hits = 0
     for _ in range(n_perm):
-        perm = rng.permutation(len(x))
-        rho_p = float(np.dot(rxc[perm], ryc)) / denom
+        k = int(rng.integers(1, n))  # never the identity rotation
+        rho_p = float(np.dot(np.roll(rxc, k), ryc)) / denom
         if rho_p >= rho_obs:
             hits += 1
     return (1 + hits) / (n_perm + 1)

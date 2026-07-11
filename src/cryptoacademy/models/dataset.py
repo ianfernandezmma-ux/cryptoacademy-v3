@@ -35,20 +35,39 @@ NON_FEATURE_COLS = {
 
 
 def build_training_frame(
-    horizon: str, barrier_mult: float | None = None
+    horizon: str, barrier_mult: float | None = None, include_lockbox: bool = False
 ) -> tuple[pl.DataFrame, list[str]]:
     """Returns (frame, feature_names). Frame columns: features + label, ret,
     sample_weight, t0_time, t1_time, asset, asset_id.
 
-    barrier_mult selects a label variant (None -> default set)."""
+    barrier_mult selects a label variant (None -> default set).
+
+    include_lockbox=True is EXCLUSIVELY for the one-shot end-of-Phase-5
+    lockbox evaluation — every training/CV/selection caller must leave it
+    False (config.LOCKBOX_START cutoff)."""
     from cryptoacademy.labels.generate import DEFAULT_BARRIER_MULT, label_suffix
 
+    lockbox_start = pl.lit(config.LOCKBOX_START).str.to_datetime(time_zone="UTC")
     suffix = label_suffix(barrier_mult if barrier_mult is not None else DEFAULT_BARRIER_MULT)
     frames = []
     for i, asset in enumerate(config.load_assets()):
         labels = pl.read_parquet(
             config.DATA_DIR / "labels" / f"labels_{asset}_{horizon}{suffix}.parquet"
         )
+        if not include_lockbox:
+            n_before = len(labels)
+            labels = labels.filter(pl.col("t0_time") < lockbox_start)
+            dropped = n_before - len(labels)
+            if dropped:
+                log.info(
+                    "%s %s: %d lockbox events (t0 >= %s) excluded",
+                    asset, horizon, dropped, config.LOCKBOX_START,
+                )
+        else:
+            log.warning(
+                "LOCKBOX INCLUDED for %s %s — this must only happen in the "
+                "one-shot end-of-Phase-5 evaluation", asset, horizon,
+            )
         matrix = pl.read_parquet(config.DATA_DIR / "features" / f"matrix_{asset}.parquet")
         joined = (
             labels.sort("t0_time")
@@ -60,7 +79,11 @@ def build_training_frame(
             )
             .with_columns(pl.lit(i).alias("asset_id"), pl.lit(asset).alias("asset"))
         )
-        # PIT guard: the matched decision day must never be after the event
+        # PIT guard: the matched decision day must never be after the event.
+        # A null decision_day (no match at all) would pass the > filter
+        # silently, so guard it explicitly.
+        if joined["decision_day"].null_count():
+            raise RuntimeError(f"asof join found no matrix row for some {asset} events")
         bad = joined.filter(pl.col("decision_day") > pl.col("t0_time"))
         if len(bad):
             raise RuntimeError(f"asof join produced future decision days for {asset}")

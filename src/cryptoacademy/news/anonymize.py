@@ -140,6 +140,39 @@ GAZETTEER: dict[str, str] = {
     "Hut 8": "a listed BTC miner (MINER_E)",
 }
 
+# Homonym guards (audit 2026-07-11): case-insensitive whole-word matching was
+# corrupting non-crypto senses on the LIVE stream ("Arctic Circle" -> "Arctic
+# a US stablecoin issuer", Google's Gemini -> "a US-regulated crypto
+# exchange", OpenAI's Sol/Terra/Luna models -> the collapsed ecosystem).
+# For these keys a guarded pattern with negative-lookaround collocations
+# replaces the plain \b-pattern. Gazetteer changes alter the scorer's input
+# distribution — re-measure the gold set at the next calibration pass.
+AMBIGUOUS_GUARDS: dict[str, str] = {
+    "Gemini": (
+        r"(?<!google )(?<!google's )(?<!openai )(?<!openai's )\bgemini\b"
+        r"(?! (ai\b|model|pro\b|ultra|flash|nano|app\b|chatbot|assistant|beats))"
+    ),
+    "Circle": r"(?<!arctic )(?<!full )(?<!inner )\bcircle\b(?! (of|the|back|around))",
+    "Compound": r"\bcompound\b(?! (interest|annual|growth|effect|word|returns))",
+    "Avalanche": r"(?<!snow )\bavalanche\b(?! of\b)",
+    "Terra": r"(?<!openai )\bterra\b(?! (firma|cotta|nova))",
+    "Celsius": r"(?<!\d )(?<!\d)(?<!degrees )\bcelsius\b",
+    "DOGE": (
+        r"\bdoge\b(?! (department|dept|office|task|team|staff|staffers"
+        r"|layoffs|cuts|savings|caucus|subcommittee))"
+    ),
+    "Voyager": r"\bvoyager\b(?! (1\b|2\b|probe|spacecraft|mission))",
+    "Ripple": r"\bripple\b(?! (effect|effects))",
+    "Tron": r"\btron\b(?! (movie|film|legacy|ares))",
+    "Visa": (
+        r"(?<!travel )(?<!work )(?<!student )(?<!golden )(?<!us )\bvisa\b"
+        r"(?! (application|applications|requirement|requirements|holder"
+        r"|holders|waiver|program|interview|fee|fees|rules|delay|delays))"
+    ),
+    "Nomad": r"(?<!digital )\bnomad\b",
+    "LUNA": r"(?<!openai )\bluna\b",
+}
+
 _DATE_PATTERNS = [
     (re.compile(r"\b(January|February|March|April|May|June|July|August|September|"
                 r"October|November|December)\s+\d{1,2},?\s+(19|20)\d{2}\b"), "recently"),
@@ -156,7 +189,9 @@ def _compiled() -> list[tuple[re.Pattern, str]]:
         _COMPILED = [
             (
                 re.compile(
-                    (re.escape(k) if k != k.strip() else r"\b" + re.escape(k) + r"\b"),
+                    AMBIGUOUS_GUARDS[k]
+                    if k in AMBIGUOUS_GUARDS
+                    else (re.escape(k) if k != k.strip() else r"\b" + re.escape(k) + r"\b"),
                     re.IGNORECASE,
                 ),
                 v,

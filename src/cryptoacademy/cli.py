@@ -359,7 +359,17 @@ def daily_update() -> None:
     _setup_logging("daily_update")
     from datetime import UTC, datetime, timedelta
 
-    from cryptoacademy.data.binance_vision import download_funding, download_klines
+    from cryptoacademy.data.altdata import (
+        download_cot,
+        download_dvol,
+        download_metrics,
+        download_wiki_pageviews,
+    )
+    from cryptoacademy.data.binance_vision import (
+        download_funding,
+        download_klines,
+        gap_report,
+    )
     from cryptoacademy.data.fng import download_fng
     from cryptoacademy.data.macro_onchain import backfill_macro_all
     from cryptoacademy.features.matrix import build_matrix as _build
@@ -368,6 +378,21 @@ def daily_update() -> None:
     log = logging.getLogger("daily_update")
     failures: list[str] = []
     start = (datetime.now(UTC) - timedelta(days=40)).strftime("%Y-%m")
+
+    def _gap_check() -> None:
+        # recent window only: 15 small historical gaps (2020-2024, exchange
+        # outages) are known and documented — NEW gaps are what's actionable
+        import polars as pl
+
+        cutoff = datetime.now(UTC) - timedelta(days=45)
+        for a, m in config.load_assets().items():
+            df = pl.read_parquet(
+                config.RAW_DIR / "klines" / a / "spot" / f"{m['spot_symbol']}_1h.parquet"
+            ).filter(pl.col("open_time") >= cutoff)
+            gaps = gap_report(df)
+            if len(gaps):
+                raise RuntimeError(f"{a}: {len(gaps)} hourly gaps in recent klines")
+
     for step_name, step in [
         ("prices", lambda: [
             download_klines(a, m["spot_symbol"], "spot", start=start)
@@ -377,8 +402,20 @@ def daily_update() -> None:
             download_funding(a, m["perp_symbol"], start=start)
             for a, m in config.load_assets().items()
         ]),
+        # metrics/DVOL/wiki/COT were NEVER refreshed by daily-update before
+        # (audit 2026-07-11: the derivatives block — the strongest feature
+        # family — sat 9 days stale while matrices rebuilt daily). metrics is
+        # resumable (skips existing days), the rest are cheap full refreshes.
+        ("metrics", lambda: [
+            download_metrics(a, m["perp_symbol"])
+            for a, m in config.load_assets().items()
+        ]),
+        ("dvol", lambda: [download_dvol(c) for c in ("BTC", "ETH")]),
+        ("wiki_attention", download_wiki_pageviews),
+        ("cot", download_cot),
         ("fng", download_fng),
         ("macro_onchain_etf", backfill_macro_all),
+        ("gap_check", _gap_check),
         ("matrices", lambda: [_build(a) for a in config.load_assets()]),
     ]:
         try:
@@ -387,10 +424,49 @@ def daily_update() -> None:
         except Exception as exc:  # keep going; report all failures at once
             log.exception("daily-update step failed: %s", step_name)
             failures.append(f"{step_name}: {exc}")
-    if failures:
-        telegram.send("🔴 daily-update failures: " + " | ".join(failures)[:500])
+
+    # freshness gate: a step can 'succeed' while its dataset silently stops
+    # advancing (API returns stale data, source outage) — check max
+    # timestamps against each feed's expected cadence
+    stale: list[str] = []
+    import polars as pl
+
+    now = datetime.now(UTC)
+    for label, path, tcol, max_age_h in [
+        ("klines", config.RAW_DIR / "klines" / "btc" / "spot" / "BTCUSDT_1h.parquet",
+         "open_time", 6),
+        ("metrics", config.RAW_DIR / "metrics" / "btc" / "BTCUSDT_metrics.parquet",
+         "create_time", 48),
+        ("dvol", config.RAW_DIR / "options" / "btc_dvol.parquet", "time", 48),
+        ("fng", config.RAW_DIR / "sentiment" / "fear_greed.parquet", "date", 48),
+        ("onchain", config.RAW_DIR / "onchain" / "coinmetrics.parquet",
+         "published_at_utc", 72),
+    ]:
+        try:  # per-feed: one bad file must not abort the remaining checks
+            if not path.exists():
+                stale.append(f"{label}: file missing")
+                continue
+            newest = pl.read_parquet(path, columns=[tcol])[tcol].max()
+            if newest is None:
+                stale.append(f"{label}: empty file")
+                continue
+            if newest.tzinfo is None:
+                newest = newest.replace(tzinfo=UTC)
+            age_h = (now - newest).total_seconds() / 3600
+            if age_h > max_age_h:
+                stale.append(f"{label}: {age_h:.0f}h stale")
+        except Exception as exc:
+            stale.append(f"{label}: freshness check failed ({exc})")
+
+    if failures or stale:
+        parts = []
+        if failures:
+            parts.append("failures: " + " | ".join(failures))
+        if stale:
+            parts.append("STALE: " + " | ".join(stale))
+        telegram.send(("🔴 daily-update " + " ;; ".join(parts))[:1000])
         raise typer.Exit(1)
-    telegram.send("✅ daily-update complete: all datasets refreshed, matrices rebuilt")
+    telegram.send("✅ daily-update complete: all datasets refreshed and fresh, matrices rebuilt")
 
 
 @app.command()

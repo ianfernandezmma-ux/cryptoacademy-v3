@@ -44,8 +44,15 @@ def _load_hourly(asset: str) -> pl.DataFrame:
 
 
 def generate_for_asset(
-    asset: str, k: float, horizon_bars: int, barrier_mult: float = DEFAULT_BARRIER_MULT
+    asset: str,
+    k: float,
+    horizon_bars: int,
+    barrier_mult: float = DEFAULT_BARRIER_MULT,
+    max_t0_time=None,
 ) -> pl.DataFrame:
+    """max_t0_time truncates the event set BEFORE weights are computed —
+    weights on a post-hoc-filtered set would include concurrency/decay
+    contributions from events that are then trimmed away."""
     df = _load_hourly(asset)
     close = df["close"].to_numpy()
     high = df["high"].to_numpy()
@@ -58,6 +65,12 @@ def generate_for_asset(
     events = triple_barrier(high, low, close, events_idx, sigma, cfg)
     if events.is_empty():
         return events
+    if max_t0_time is not None:
+        times = df["open_time"]
+        keep = [times[i] <= max_t0_time for i in events["t0_idx"].to_list()]
+        events = events.filter(pl.Series(keep))
+        if events.is_empty():
+            return events
     events = sample_weights(events, close)
     times = df["open_time"]
     return events.with_columns(
@@ -94,15 +107,27 @@ def label_suffix(barrier_mult: float) -> str:
 
 def generate_variants(mults: tuple[float, ...] = (1.0, 2.0)) -> None:
     """Label sets for non-default barrier multipliers (sweep dimension).
-    Reuses the k calibrated for the default set so event SAMPLING is identical
-    across variants — only the labeling differs."""
+
+    Event SAMPLING must be identical across variants — only the labeling
+    differs. So variants take k FROM THE DEFAULT FILE (recalibrating here on
+    newer data would silently pick a different k) and are truncated to the
+    default set's t0 range (CUSUM is causal, so the overlapping prefix is
+    identical; only the tail beyond the default's snapshot could diverge)."""
     dest = config.DATA_DIR / "labels"
     dest.mkdir(parents=True, exist_ok=True)
     for hname, hbars in HORIZONS.items():
-        k = calibrate_k(hbars, DEFAULT_BARRIER_MULT)
         for mult in mults:
             for asset in config.load_assets():
-                ev = generate_for_asset(asset, k, hbars, mult)
+                default_path = dest / f"labels_{asset}_{hname}.parquet"
+                if not default_path.exists():
+                    raise RuntimeError(
+                        f"default labels missing for {asset} {hname}; run "
+                        "generate-labels before generating variants"
+                    )
+                default = pl.read_parquet(default_path, columns=["cusum_k", "t0_time"])
+                k = float(default["cusum_k"][0])
+                t0_max = default["t0_time"].max()
+                ev = generate_for_asset(asset, k, hbars, mult, max_t0_time=t0_max)
                 if ev.is_empty():
                     continue
                 ev.write_parquet(dest / f"labels_{asset}_{hname}{label_suffix(mult)}.parquet")
