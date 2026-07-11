@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { loadLatest, fmtUtc, type Latest } from "../lib/data";
 import SignalCard from "../components/SignalCard";
 import Pending from "../components/Pending";
+import Ambient from "../components/Ambient";
 
 export default function Today() {
   const [latest, setLatest] = useState<Latest | null | undefined>(undefined);
@@ -12,15 +13,21 @@ export default function Today() {
 
   return (
     <div className="ca-container">
-      <section className="ca-section" style={{ paddingTop: "clamp(32px, 5vw, 56px)" }}>
-        <div className="ca-kicker">Today's signal</div>
-        <h1 className="ca-h1">Which way is the market leaning?</h1>
-        <p className="ca-lead">
-          Once a day, our model reads price action, funding, volatility, on-chain flows
-          and news, and produces one simple answer per market. A quality filter decides
-          whether the read is strong enough to be a signal — most days it isn't, and we
-          tell you that too.
-        </p>
+      <section
+        className="ca-section ca-ambient"
+        style={{ padding: "clamp(32px, 5vw, 56px) clamp(20px, 3vw, 32px)", borderRadius: 16, marginTop: 12 }}
+      >
+        <Ambient name="ambient-dust" opacity={0.5} />
+        <div className="ca-ambient-content">
+          <div className="ca-kicker">Today's signal</div>
+          <h1 className="ca-h1">Which way is the market leaning?</h1>
+          <p className="ca-lead">
+            Once a day, our model reads price action, funding, volatility, on-chain flows
+            and news, and produces one simple answer per market. A quality filter decides
+            whether the read is strong enough to be a signal — most days it isn't, and we
+            tell you that too.
+          </p>
+        </div>
       </section>
 
       {latest === undefined ? null : latest === null ? (

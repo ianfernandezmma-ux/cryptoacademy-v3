@@ -61,7 +61,7 @@ export default function Home() {
       {/* hero */}
       <section className="ca-hero ca-ambient">
         <div className="ca-hero-bg" />
-        <Ambient name="ambient-dust" opacity={0.5} />
+        <Ambient name="ambient-stage" opacity={0.55} />
         <div className="ca-hero-dots" />
         <div className="ca-container ca-hero-grid">
           <div>
