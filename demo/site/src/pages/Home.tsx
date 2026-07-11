@@ -100,17 +100,6 @@ export default function Home() {
             >
               <source src={`${BASE}assets/coin-hero.mp4`} type="video/mp4" />
             </video>
-            <video
-              className="ca-hero-coin-eth"
-              autoPlay
-              muted
-              loop
-              playsInline
-              poster={`${BASE}assets/eth-dark-loop-poster.webp`}
-              aria-hidden
-            >
-              <source src={`${BASE}assets/eth-dark-loop.mp4`} type="video/mp4" />
-            </video>
           </div>
         </div>
       </section>
