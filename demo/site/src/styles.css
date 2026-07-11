@@ -621,9 +621,19 @@
 }
 
 /* ── ambient section backgrounds ────────────────────────────────────── */
+html,
+body {
+  overflow-x: clip; /* full-bleed sections use 100vw, which includes the scrollbar */
+}
 .ca-ambient {
   position: relative;
   overflow: hidden;
+}
+/* break out of .ca-container to span the full viewport width */
+.ca-bleed {
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  border-radius: 0;
 }
 .ca-ambient-video {
   position: absolute;

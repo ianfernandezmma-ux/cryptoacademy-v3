@@ -112,11 +112,11 @@ export default function Learn() {
   return (
     <div className="ca-container">
       <section
-        className="ca-section ca-ambient"
-        style={{ padding: "clamp(32px, 5vw, 56px) clamp(20px, 3vw, 32px)", borderRadius: 16, marginTop: 12 }}
+        className="ca-section ca-ambient ca-bleed"
+        style={{ padding: "clamp(48px, 7vw, 88px) 0 clamp(40px, 6vw, 72px)" }}
       >
         <Ambient name="ambient-dust" opacity={0.5} />
-        <div className="ca-ambient-content">
+        <div className="ca-container ca-ambient-content">
           <div className="ca-kicker">Learn</div>
           <h1 className="ca-h1">From first candle to real discipline.</h1>
           <p className="ca-lead">

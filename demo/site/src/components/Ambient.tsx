@@ -6,9 +6,11 @@ import { useEffect, useRef } from "react";
 export default function Ambient({
   name,
   opacity = 0.45,
+  objectPosition,
 }: {
   name: "ambient-dust" | "ambient-dawn" | "ambient-stage";
   opacity?: number;
+  objectPosition?: string;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
 
@@ -29,7 +31,7 @@ export default function Ambient({
       <video
         ref={ref}
         className="ca-ambient-video"
-        style={{ opacity }}
+        style={{ opacity, objectPosition }}
         autoPlay
         muted
         loop
