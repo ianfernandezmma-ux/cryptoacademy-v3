@@ -99,16 +99,18 @@ data lands.
 
 ## 4. Learn (education strategy)
 
-- **3 tracks, ~24 lessons, text-first, one voice** (Zerodha Varsity model):
-  - **T1 · How crypto markets work** (8 new): what moves price; spot/perps/
-    funding; volatility; sentiment (F&G, positioning); on-chain & macro;
-    why most traders lose; what an edge really is; honest evaluation.
-  - **T2 · Reading charts** (the 10 legacy TA modules, lightly edited) + a
-    one-paragraph honesty note per module ("indicators describe, they don't
-    predict — our momentum-only model scores ~zero") linking T1·8.
-  - **T3 · Using the daily signal responsibly** (6 new): how the signal is
-    built; reading the card; 1% position sizing; no-signal days are the
-    point; drawdown math; your own rules checklist.
+- **2 tracks (Ian's decision 2026-07-11, supersedes the 3-track IA): Beginner
+  and Advanced, 5–7 lessons each, shipped as PLACEHOLDERS** — the structure,
+  progress mechanics and lesson template exist from day one; lesson bodies
+  and more tracks/topics get added over time. Text-first, one voice
+  (Zerodha Varsity model). Suggested placeholder split:
+  - **Beginner** (~6): what moves crypto prices; reading the daily signal
+    card; why most days are NO-TRADE; position sizing basics; why most
+    traders lose; using the daily brief.
+  - **Advanced** (~6): funding/perps mechanics; volatility & regimes;
+    chart structure (from the legacy TA modules); what a real edge is;
+    honest evaluation (why our numbers look small); building a rules
+    checklist.
 - **Glossary, 60–80 terms, ES+EN**, auto-linked from briefs and lessons —
   the SEO/LLM-citation play (original-data pages + glossaries still earn
   citations in 2026; generic "what is Bitcoin" content doesn't).

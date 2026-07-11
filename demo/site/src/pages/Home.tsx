@@ -2,6 +2,8 @@ import { Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { loadLatest, fmtUtc, type Latest } from "../lib/data";
 
+const BASE = import.meta.env.BASE_URL;
+
 const STEPS = [
   {
     n: "01",
@@ -9,6 +11,8 @@ const STEPS = [
     body: "Ten short modules take you from reading your first candle chart to managing risk like a professional. No prior experience, no coding.",
     to: "/learn",
     cta: "Start the track",
+    cover: `${BASE}assets/terrain.webp`,
+    alt: "Dark terrain model traced by neon-green contour lines",
   },
   {
     n: "02",
@@ -16,6 +20,8 @@ const STEPS = [
     body: "Every morning at 07:00 UTC we publish a plain-English overview of what happened in BTC and ETH and what to watch today. Five minutes, no noise.",
     to: "/brief",
     cta: "Read today's brief",
+    cover: `${BASE}assets/desk.webp`,
+    alt: "Dark desk at dawn with a notebook and a small glowing green lamp",
   },
   {
     n: "03",
@@ -23,6 +29,8 @@ const STEPS = [
     body: "Our model reads the market every day and tells you which way it leans — and, crucially, when there is no clear edge. Most days there isn't. That honesty is the product.",
     to: "/today",
     cta: "See today's signal",
+    cover: `${BASE}assets/observatory.webp`,
+    alt: "Radio telescope at night under a thin green scan line",
   },
 ];
 
@@ -85,10 +93,21 @@ export default function Home() {
               muted
               loop
               playsInline
-              poster={`${import.meta.env.BASE_URL}assets/coin-hero.webp`}
+              poster={`${BASE}assets/coin-hero.webp`}
               aria-hidden
             >
-              <source src={`${import.meta.env.BASE_URL}assets/coin-hero.mp4`} type="video/mp4" />
+              <source src={`${BASE}assets/coin-hero.mp4`} type="video/mp4" />
+            </video>
+            <video
+              className="ca-hero-coin-eth"
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster={`${BASE}assets/eth-dark-loop-poster.webp`}
+              aria-hidden
+            >
+              <source src={`${BASE}assets/eth-dark-loop.mp4`} type="video/mp4" />
             </video>
           </div>
         </div>
@@ -139,6 +158,7 @@ export default function Home() {
                 className="ca-panel ca-panel-pad ca-card-hover"
                 style={{ textDecoration: "none", display: "flex", flexDirection: "column", gap: 12 }}
               >
+                <img className="ca-cover" src={s.cover} alt={s.alt} loading="lazy" />
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                   <span className="ca-mono-label">Step / {s.n}</span>
                   <span
@@ -171,14 +191,30 @@ export default function Home() {
       {/* honesty note */}
       <section className="ca-section">
         <div className="ca-container">
-          <div className="ca-notice">
-            <span className="ca-dot" />
-            <span>
-              <b style={{ color: "var(--fg)" }}>Why trust this?</b> Every signal is
-              published with a timestamp <i>before</i> the market resolves it, and we
-              show you the misses along with the hits. When our model has no edge, the
-              site says so — “no signal” is a result, not a failure.
-            </span>
+          <div
+            className="ca-panel ca-panel-pad"
+            style={{ display: "flex", gap: 22, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <video
+              className="ca-seal-video"
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster={`${BASE}assets/seal-loop-poster.webp`}
+              aria-hidden
+            >
+              <source src={`${BASE}assets/seal-loop.mp4`} type="video/mp4" />
+            </video>
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <div className="ca-kicker">Sealed before the outcome</div>
+              <p style={{ margin: "10px 0 0", fontSize: 14.5, lineHeight: 1.6, color: "var(--fg-soft)" }}>
+                <b style={{ color: "var(--fg)" }}>Why trust this?</b> Every signal is
+                published with a timestamp <i>before</i> the market resolves it, and we
+                show you the misses along with the hits. When our model has no edge, the
+                site says so — “no signal” is a result, not a failure.
+              </p>
+            </div>
           </div>
         </div>
       </section>

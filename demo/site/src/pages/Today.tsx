@@ -98,6 +98,37 @@ export default function Today() {
         </>
       )}
 
+      {/* the no-trade philosophy — the observatory */}
+      <section className="ca-section">
+        <div className="ca-media-strip">
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            poster={`${import.meta.env.BASE_URL}assets/observatory-loop-poster.webp`}
+            aria-hidden
+          >
+            <source
+              src={`${import.meta.env.BASE_URL}assets/observatory-loop.mp4`}
+              type="video/mp4"
+            />
+          </video>
+          <div className="ca-media-strip-inner">
+            <div className="ca-kicker">Watching, not acting</div>
+            <h2 className="ca-h2" style={{ marginTop: 10 }}>
+              Most days, the right trade is no trade.
+            </h2>
+            <p style={{ margin: "12px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--fg-soft)" }}>
+              Our quality filter only clears a signal on roughly 13 of every 100 days.
+              That's not a limitation — it's the whole point. The market rarely offers a
+              real edge, and pretending otherwise is how beginners lose. We watch every
+              day so you only act on the rare ones.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* how to use */}
       <section className="ca-section">
         <div className="ca-section-head">

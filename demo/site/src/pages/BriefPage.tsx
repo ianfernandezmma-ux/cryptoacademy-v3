@@ -43,6 +43,19 @@ export default function BriefPage() {
           What moved, what matters, and what to watch — for Bitcoin and Ethereum, in
           plain English, every morning at 07:00 UTC. Read it before you look at a chart.
         </p>
+        <div className="ca-mast">
+          <img
+            src={`${import.meta.env.BASE_URL}assets/desk.webp`}
+            alt="Dark desk at dawn: a closed notebook beside a small glowing green indicator lamp"
+            loading="lazy"
+          />
+          <div className="ca-mast-inner">
+            <span className="ca-mono-label" style={{ color: "var(--fg-soft)" }}>
+              Written every morning by our local AI · reviewed by no one — a machine
+              artifact, honestly labeled
+            </span>
+          </div>
+        </div>
       </section>
 
       {brief === undefined ? null : brief === null ? (

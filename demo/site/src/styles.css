@@ -527,6 +527,99 @@
   margin-bottom: 28px;
 }
 
+/* ── media covers & strips (Higgsfield asset pack) ─────────────────── */
+.ca-cover {
+  width: calc(100% + 2 * clamp(20px, 3vw, 30px));
+  margin: calc(-1 * clamp(20px, 3vw, 30px)) calc(-1 * clamp(20px, 3vw, 30px)) 0;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-bottom: 1px solid var(--line);
+  display: block;
+}
+/* full-bleed media panel with copy overlaid on the darkened left side */
+.ca-media-strip {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-height: 300px;
+  display: flex;
+  align-items: flex-end;
+}
+.ca-media-strip > video,
+.ca-media-strip > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ca-media-strip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(8, 10, 9, 0.92) 0%, rgba(8, 10, 9, 0.35) 55%, transparent 100%);
+}
+.ca-media-strip-inner {
+  position: relative;
+  z-index: 1;
+  padding: clamp(22px, 4vw, 40px);
+  max-width: 640px;
+}
+/* brief masthead banner */
+.ca-mast {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 28px;
+}
+.ca-mast img {
+  display: block;
+  width: 100%;
+  height: clamp(140px, 22vw, 240px);
+  object-fit: cover;
+  object-position: left center;
+}
+.ca-mast-inner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(16px, 3vw, 28px);
+  background: linear-gradient(to right, rgba(8, 10, 9, 0.25) 30%, rgba(8, 10, 9, 0.72) 100%);
+}
+/* secondary ETH coin floating beside the BTC hero coin */
+.ca-hero-coin-eth {
+  position: absolute;
+  right: -4%;
+  bottom: -6%;
+  width: 46%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, black 52%, transparent 72%);
+  mask-image: radial-gradient(circle at 50% 50%, black 52%, transparent 72%);
+  animation: ca-float 7s ease-in-out 1.6s infinite;
+}
+/* round inset media (seal) */
+.ca-seal-video {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ca-hero-coin video,
+  .ca-hero-coin img,
+  .ca-hero-coin-eth {
+    animation: none;
+  }
+}
+
 /* ── pending state ─────────────────────────────────────────────────── */
 .ca-pending {
   display: flex;

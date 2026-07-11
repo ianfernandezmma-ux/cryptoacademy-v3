@@ -120,13 +120,21 @@ export default function Learn() {
       </section>
 
       <section className="ca-section">
-        <div className="ca-section-head">
-          <div className="ca-kicker">Track one</div>
-          <h2 className="ca-h2">Foundations.</h2>
-          <p className="ca-lead" style={{ fontSize: 15 }}>
-            Start here even if you've traded before. B·05 — risk — is the module that
-            pays for all the others.
-          </p>
+        <div className="ca-media-strip" style={{ minHeight: 220, marginBottom: 28 }}>
+          <img
+            src={`${import.meta.env.BASE_URL}assets/terrain.webp`}
+            alt="Dark terrain model traced by neon-green contour lines"
+            loading="lazy"
+          />
+          <div className="ca-media-strip-inner">
+            <div className="ca-kicker">Track one · Beginner</div>
+            <h2 className="ca-h2" style={{ marginTop: 8 }}>Foundations.</h2>
+            <p style={{ margin: "10px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--fg-soft)" }}>
+              Price structure is terrain: learn to read the map before you walk it.
+              Start here even if you've traded before — B·05, risk, is the module that
+              pays for all the others.
+            </p>
+          </div>
         </div>
         <div className="ca-module-grid">
           {BEGINNER.map((m) => (
@@ -136,12 +144,21 @@ export default function Learn() {
       </section>
 
       <section className="ca-section">
-        <div className="ca-section-head">
-          <div className="ca-kicker">Track two</div>
-          <h2 className="ca-h2">Advanced reading.</h2>
-          <p className="ca-lead" style={{ fontSize: 15 }}>
-            How professionals read intent behind price. Unlocks after Foundations.
-          </p>
+        <div className="ca-media-strip" style={{ minHeight: 220, marginBottom: 28 }}>
+          <img
+            src={`${import.meta.env.BASE_URL}assets/flow.webp`}
+            alt="Glass loops carrying streams of glowing green particles"
+            loading="lazy"
+          />
+          <div className="ca-media-strip-inner">
+            <div className="ca-kicker">Track two · Advanced</div>
+            <h2 className="ca-h2" style={{ marginTop: 8 }}>Advanced reading.</h2>
+            <p style={{ margin: "10px 0 0", fontSize: 15, lineHeight: 1.6, color: "var(--fg-soft)" }}>
+              Under the chart there is flow — orders, liquidity, intent. How
+              professionals read the business being done behind price. Unlocks after
+              Foundations.
+            </p>
+          </div>
         </div>
         <div className="ca-module-grid">
           {ADVANCED.map((m) => (
@@ -151,7 +168,34 @@ export default function Learn() {
       </section>
 
       <section className="ca-section">
-        <div className="ca-notice">
+        <div
+          className="ca-panel ca-panel-pad"
+          style={{ display: "flex", gap: 24, alignItems: "center", flexWrap: "wrap" }}
+        >
+          <img
+            src={`${import.meta.env.BASE_URL}assets/balance.webp`}
+            alt="Precision brass balance scale crossed by a level green laser line"
+            loading="lazy"
+            style={{
+              width: 180,
+              aspectRatio: "3 / 2",
+              objectFit: "cover",
+              borderRadius: 10,
+              border: "1px solid var(--line)",
+              flex: "0 0 auto",
+            }}
+          />
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <div className="ca-kicker">The one habit</div>
+            <p style={{ margin: "10px 0 0", fontSize: 14.5, lineHeight: 1.6, color: "var(--fg-soft)" }}>
+              <b style={{ color: "var(--fg)" }}>Balance survives; conviction doesn't.</b>{" "}
+              Every lesson here feeds one habit: measure risk before you look for
+              reward. Size small, expect losing streaks, and let the days without a
+              signal cost you nothing.
+            </p>
+          </div>
+        </div>
+        <div className="ca-notice" style={{ marginTop: 14 }}>
           <span className="ca-dot ca-dot--warn" />
           <span>
             <b style={{ color: "var(--fg)" }}>Lessons are being produced.</b> Module
