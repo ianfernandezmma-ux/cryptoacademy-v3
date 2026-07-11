@@ -9,6 +9,7 @@ import {
   type BriefsIndex,
 } from "../lib/data";
 import Pending from "../components/Pending";
+import Ambient from "../components/Ambient";
 
 export default function BriefPage() {
   const { date } = useParams<{ date?: string }>();
@@ -34,7 +35,12 @@ export default function BriefPage() {
 
   return (
     <div className="ca-container">
-      <section className="ca-section" style={{ paddingTop: "clamp(32px, 5vw, 56px)" }}>
+      <section
+        className="ca-section ca-ambient"
+        style={{ padding: "clamp(32px, 5vw, 56px) clamp(20px, 3vw, 32px)", borderRadius: 16, marginTop: 12 }}
+      >
+        <Ambient name="ambient-dawn" opacity={0.5} />
+        <div className="ca-ambient-content">
         <div className="ca-kicker">Daily brief</div>
         <h1 className="ca-h1">
           {isToday ? "Your morning market brief." : brief ? fmtDateLong(brief.date) : "Archive"}
@@ -55,6 +61,7 @@ export default function BriefPage() {
               artifact, honestly labeled
             </span>
           </div>
+        </div>
         </div>
       </section>
 

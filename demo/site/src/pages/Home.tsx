@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import { loadLatest, fmtUtc, type Latest } from "../lib/data";
+import Ambient from "../components/Ambient";
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -58,8 +59,9 @@ export default function Home() {
   return (
     <>
       {/* hero */}
-      <section className="ca-hero">
+      <section className="ca-hero ca-ambient">
         <div className="ca-hero-bg" />
+        <Ambient name="ambient-dust" opacity={0.5} />
         <div className="ca-hero-dots" />
         <div className="ca-container ca-hero-grid">
           <div>

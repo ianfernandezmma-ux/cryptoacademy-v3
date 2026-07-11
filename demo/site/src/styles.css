@@ -620,6 +620,35 @@
   }
 }
 
+/* ── ambient section backgrounds ────────────────────────────────────── */
+.ca-ambient {
+  position: relative;
+  overflow: hidden;
+}
+.ca-ambient-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.ca-ambient-fade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent 0%, var(--bg) 97%);
+  pointer-events: none;
+}
+.ca-ambient > .ca-container,
+.ca-ambient-content {
+  position: relative;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ca-ambient-video {
+    display: none;
+  }
+}
+
 /* ── pending state ─────────────────────────────────────────────────── */
 .ca-pending {
   display: flex;

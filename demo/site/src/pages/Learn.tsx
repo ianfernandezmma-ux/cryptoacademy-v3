@@ -1,6 +1,8 @@
 // Learn track — curriculum migrated from the legacy demo (courses.jsx MODULES),
 // de-faked: no invented cohort seats, no enroll theater. Lessons ship progressively.
 
+import Ambient from "../components/Ambient";
+
 type Module = {
   n: string;
   title: string;
@@ -109,14 +111,20 @@ function ModuleCard({ m }: { m: Module }) {
 export default function Learn() {
   return (
     <div className="ca-container">
-      <section className="ca-section" style={{ paddingTop: "clamp(32px, 5vw, 56px)" }}>
-        <div className="ca-kicker">Learn</div>
-        <h1 className="ca-h1">From first candle to real discipline.</h1>
-        <p className="ca-lead">
-          Ten modules in two tracks. Everything is built around BTC and ETH — the two
-          markets our signal covers — so what you learn each week is what you practice
-          each morning with the brief and the signal.
-        </p>
+      <section
+        className="ca-section ca-ambient"
+        style={{ padding: "clamp(32px, 5vw, 56px) clamp(20px, 3vw, 32px)", borderRadius: 16, marginTop: 12 }}
+      >
+        <Ambient name="ambient-stage" opacity={0.55} />
+        <div className="ca-ambient-content">
+          <div className="ca-kicker">Learn</div>
+          <h1 className="ca-h1">From first candle to real discipline.</h1>
+          <p className="ca-lead">
+            Ten modules in two tracks. Everything is built around BTC and ETH — the two
+            markets our signal covers — so what you learn each week is what you practice
+            each morning with the brief and the signal.
+          </p>
+        </div>
       </section>
 
       <section className="ca-section">
