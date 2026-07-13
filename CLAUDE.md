@@ -96,8 +96,14 @@ data/ (gitignored)  raw parquet, news.duckdb, labels, features, trials
 ```
 
 Scheduled tasks (Task Scheduler folder "CryptoAcademy"): NewsCollector 10min,
-NewsScoring/GdeltHarvester/OpenInterestArchiver hourly, DailyUpdate 08:30,
-OptionsChainSnapshot 08:05. They hold the venv exe and the DuckDB lock.
+GdeltHarvester/OpenInterestArchiver hourly, DailyUpdate 08:30,
+OptionsChainSnapshot 08:05. They hold the venv exe and the DuckDB lock. These
+are DATA-ONLY (no GPU) and stay enabled so forward-only archives (Binance OI
+expires ~30d, Deribit option snapshots have no history) don't lose data.
+
+**NewsScoring is DISABLED** (Ian's machine is shared with gaming): the local AI
+must never run on its own. See the local-AI policy below — this is a hard
+rule, not a preference.
 
 ## Environment gotchas (they WILL bite)
 
@@ -107,6 +113,17 @@ OptionsChainSnapshot 08:05. They hold the venv exe and the DuckDB lock.
 - **DuckDB single-writer**: collector/scorer hold `data/news.duckdb`; retry
   connects (up to 30×20s observed), hold write connections briefly.
 - **Windows console**: `$env:PYTHONIOENCODING="utf-8"` for non-ASCII prints.
+- **Local AI is OFF by default (shared gaming machine — HARD RULE)**: nothing
+  may touch the local GPU model automatically. Every Ollama entry point
+  (`scoring._generate`, `scoring.embed`, `regime.classify_day`) is gated by
+  `cryptoacademy.localai.ensure_local_ai_allowed`, which raises unless the run
+  sets `CRYPTOACADEMY_ENABLE_LOCAL_AI=1`. The `score-news` and `backfill-regime`
+  CLI commands skip cleanly (no Telegram alarm) when it's unset. To run the AI
+  on Ian's explicit "activa la IA" instruction, authorize that ONE command:
+  `$env:CRYPTOACADEMY_ENABLE_LOCAL_AI='1'; .venv\Scripts\python.exe -m cryptoacademy score-news`
+  (the var isn't persisted, so it lasts one process). `tests/test_localai_gate.py`
+  is the CI guarantee. Torch training (GPU) is also never scheduled — it only
+  runs when a phase command is launched by hand.
 - **Local LLMs (Ollama)**: qwen3.6:35b-a3b = scorer/regime/reports — ALWAYS
   `think:false, temperature 0, format=json_schema` for structured calls
   (thinking mode returns empty response). One big model resident at a time.

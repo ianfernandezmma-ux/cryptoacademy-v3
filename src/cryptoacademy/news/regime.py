@@ -33,6 +33,7 @@ import httpx
 import polars as pl
 
 from cryptoacademy import config
+from cryptoacademy.localai import ensure_local_ai_allowed
 
 log = logging.getLogger(__name__)
 
@@ -209,6 +210,7 @@ def _user_prompt(crypto: list[str], macro: list[str]) -> str:
 
 
 def classify_day(client: httpx.Client, crypto: list[str], macro: list[str]) -> dict:
+    ensure_local_ai_allowed("risk-regime classification (local LLM)")
     resp = client.post(
         OLLAMA,
         json={

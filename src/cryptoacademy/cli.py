@@ -155,12 +155,24 @@ def backfill_gdelt(max_days: int = 30) -> None:
 
 @app.command()
 def score_news(limit: int = 500) -> None:
-    """Score pending articles with the local LLM (dedup + structured extraction)."""
+    """Score pending articles with the local LLM (dedup + structured extraction).
+
+    Local AI is OFF by default on this shared gaming machine: this command does
+    nothing unless CRYPTOACADEMY_ENABLE_LOCAL_AI=1 is set for the run.
+    """
     _setup_logging("scoring")
+    from cryptoacademy.localai import ENABLE_ENV, local_ai_enabled
+
+    log = logging.getLogger("score_news")
+    if not local_ai_enabled():
+        msg = f"score-news skipped: local AI is OFF (set {ENABLE_ENV}=1 to run it)."
+        log.warning(msg)
+        typer.echo(msg)
+        return
+
     from cryptoacademy.news.scoring import score_pending
     from cryptoacademy.notify import telegram
 
-    log = logging.getLogger("score_news")
     try:
         result = score_pending(limit=limit)
         log.info("scoring run: %s", result)
@@ -268,8 +280,21 @@ def run_sweep(n_trials: int = 40) -> None:
 
 @app.command()
 def backfill_regime(max_days: int = 5000) -> None:
-    """Score daily risk regimes over all harvested GDELT days (resumable)."""
+    """Score daily risk regimes over all harvested GDELT days (resumable).
+
+    Local AI is OFF by default on this shared gaming machine: this command does
+    nothing unless CRYPTOACADEMY_ENABLE_LOCAL_AI=1 is set for the run.
+    """
     _setup_logging("regime")
+    from cryptoacademy.localai import ENABLE_ENV, local_ai_enabled
+
+    log = logging.getLogger("regime")
+    if not local_ai_enabled():
+        msg = f"backfill-regime skipped: local AI is OFF (set {ENABLE_ENV}=1 to run it)."
+        log.warning(msg)
+        typer.echo(msg)
+        return
+
     from cryptoacademy.news.regime import backfill_regime as _run
 
     result = _run(max_days=max_days)

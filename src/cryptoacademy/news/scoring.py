@@ -20,6 +20,7 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from cryptoacademy import config
+from cryptoacademy.localai import ensure_local_ai_allowed
 
 log = logging.getLogger(__name__)
 
@@ -120,6 +121,7 @@ Article: "Curve pool drained for $8M via oracle manipulation; attacker bridges f
 
 
 def _generate(prompt: str, schema: dict, model: str = SCORER_MODEL) -> str:
+    ensure_local_ai_allowed("news scoring (local LLM)")
     resp = httpx.post(
         f"{OLLAMA}/api/generate",
         json={
@@ -160,6 +162,7 @@ def score_article(title: str, body: str, anonymize_dates: bool = False) -> Artic
 
 
 def embed(texts: list[str]) -> list[list[float]]:
+    ensure_local_ai_allowed("news dedup embeddings (local LLM)")
     resp = httpx.post(
         f"{OLLAMA}/api/embed", json={"model": EMBED_MODEL, "input": texts}, timeout=300.0
     )
