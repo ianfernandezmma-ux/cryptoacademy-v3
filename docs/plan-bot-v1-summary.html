@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CryptoBot v1 — The Plan, Explained</title>
+<style>
+  :root{
+    --bg:#0e1117; --card:#161b26; --card2:#1c2333; --text:#e6e9f0; --muted:#9aa4b8;
+    --accent:#4fc3f7; --green:#5dd39e; --red:#ef6a6a; --amber:#f0c36d; --line:#2a3347;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 "Segoe UI",system-ui,sans-serif;padding:0 16px 80px}
+  .wrap{max-width:920px;margin:0 auto}
+  header{padding:48px 0 8px;text-align:center}
+  header h1{font-size:2.1rem;margin:0 0 8px}
+  header p.sub{color:var(--muted);margin:0;font-size:1.05rem}
+  .badge{display:inline-block;background:var(--card2);border:1px solid var(--line);border-radius:20px;padding:3px 14px;margin:14px 4px 0;font-size:.85rem;color:var(--accent)}
+  h2{font-size:1.45rem;margin:48px 0 12px;border-bottom:2px solid var(--line);padding-bottom:8px}
+  h3{font-size:1.08rem;margin:22px 0 6px;color:var(--accent)}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 24px;margin:16px 0}
+  .card.green{border-left:4px solid var(--green)}
+  .card.red{border-left:4px solid var(--red)}
+  .card.amber{border-left:4px solid var(--amber)}
+  .card.blue{border-left:4px solid var(--accent)}
+  .muted{color:var(--muted)}
+  .kv{display:grid;grid-template-columns:180px 1fr;gap:6px 18px;margin:10px 0}
+  .kv b{color:var(--accent);font-weight:600}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.95rem}
+  th,td{padding:9px 12px;border:1px solid var(--line);text-align:left;vertical-align:top}
+  th{background:var(--card2);color:var(--accent);font-weight:600}
+  .phase{display:flex;gap:16px;margin:14px 0}
+  .phase .num{flex:0 0 52px;height:52px;border-radius:50%;background:var(--card2);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--accent)}
+  .phase .body{flex:1}
+  .pill{display:inline-block;border-radius:12px;padding:1px 10px;font-size:.8rem;margin-left:8px;vertical-align:middle}
+  .pill.keep{background:#173325;color:var(--green)}
+  .pill.cut{background:#331b1b;color:var(--red)}
+  .pill.later{background:#33290f;color:var(--amber)}
+  ul{margin:8px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:var(--card2);border-radius:5px;padding:1px 6px;font-size:.9em;color:#bfe3ff}
+  .verdicts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:14px 0}
+  .footer{margin-top:56px;color:var(--muted);font-size:.85rem;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+  @media(max-width:640px){.kv{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>🤖 CryptoBot v1 — The Plan, Explained</h1>
+  <p class="sub">Your personal automated paper-trading bot, redesigned from CryptoAcademy v3</p>
+  <div>
+    <span class="badge">Binance Spot</span>
+    <span class="badge">Long-only</span>
+    <span class="badge">BTC + ETH</span>
+    <span class="badge">96h swing</span>
+    <span class="badge">Paper trading</span>
+    <span class="badge">Local Web UI</span>
+  </div>
+  <p class="muted" style="margin-top:14px">Full technical plan: <code>docs/plan-bot-v1.md</code> · Built from 6 research agents + 3 adversarial reviewers · 2026-07-15</p>
+</header>
+
+<h2>1 · The big picture</h2>
+<div class="card blue">
+  <p><b>What we are building:</b> a bot that decides once a day whether to hold BTC/ETH or stay in cash, executes those decisions automatically in a simulated (paper) account against real market prices, records <i>everything</i> it does in a permanent memory, and shows you the results in a private web dashboard on your PC. You never touch code. It never touches the GPU, never runs the local AI, and needs <b>zero real API keys</b> while in paper mode.</p>
+  <p><b>What we are NOT building (yet):</b> anything that trades real money, anything intraday, shorts/leverage, stock markets, or a bot that "rewires itself" from its own trades. Those are explicitly out of v1.</p>
+</div>
+
+<h3>Your questions, answered by the research</h3>
+<table>
+  <tr><th>Question</th><th>Answer</th></tr>
+  <tr><td>Crypto, stocks, or both?</td><td><b>Crypto only for v1.</b> Your 6 years of clean, leak-proof data infrastructure is crypto-native; stocks add market calendars, corporate actions, paid data and broker friction. The architecture stays asset-agnostic so stocks can be added later if the bot earns it.</td></tr>
+  <tr><td>Human strategies + backtest combos, or ML?</td><td><b>Rule-based core (trend + regime filter), ML only as a future, registered add-on.</b> "Backtest every combination and pick the best" is exactly the statistical trap that killed v2 — with enough combos, one always looks great by luck. The no-emotions advantage of a bot is real, but it comes from the <i>execution layer</i>, which we keep either way.</td></tr>
+  <tr><td>New folder?</td><td><b>Two folders.</b> <code>C:\CryptoAcademy</code> stays the messy lab. <code>C:\CryptoBot</code> is the clean, portable repo: clone it on any Windows PC, run one script, and the bot works — no secrets, no junk, no research clutter inside.</td></tr>
+  <tr><td>Best dataset + secure storage?</td><td><b>An append-only journal (DuckDB)</b> recording every decision — including "do nothing" — with the exact data snapshot the bot saw, so every choice is auditable forever. Secrets live in Windows Credential Manager (never in files), backups are encrypted before leaving the machine, and the backup password gets a paper/password-manager copy so a dead disk can't take the history with it.</td></tr>
+</table>
+
+<h3>The video (Miles Deutscher)</h3>
+<div class="card">
+  <p>His one genuinely good idea is the one you spotted: <b>bots need memory</b>. But his implementation — an LLM writing itself a "lesson" after every trade and obeying it — is textbook overfitting: one trade proves nothing (statistically, even a full year of daily trades can't distinguish a good strategy from a coin flip). We adopt the idea the rigorous way: <b>memory informs, only validated experiments authorize changes</b>. Rejected: LLM as the live decision brain, casual "what if RSI…" backtesting with no experiment registry, and the $8K/week claims (unverifiable marketing).</p>
+</div>
+
+<h2>2 · The three iron rules</h2>
+<div class="card green">
+  <ol>
+    <li><b>No time travel.</b> The bot can only use information that already existed at decision time — enforced by an automatic check on every single decision, plus a clock-integrity check against Binance's server time.</li>
+    <li><b>Every experiment is registered before it runs.</b> Every strategy variant, every threshold, every future challenger, and the paper test itself. This is what makes the statistics honest (Deflated Sharpe Ratio).</li>
+    <li><b>Memory informs; only the registry authorizes.</b> The journal generates ideas and monitors health. Nothing in production changes except through a registered, validated experiment. The bot never modifies itself.</li>
+  </ol>
+</div>
+
+<h2>3 · What the bot actually trades</h2>
+<div class="card">
+  <p><b>96-hour horizon only.</b> The 24h horizon was cut by our own math: each round trip costs ~0.30–0.40% in fees+slippage, and at daily-trading frequency that friction eats more than the entire measurable edge. At 96h it's survivable.</p>
+  <table>
+    <tr><th>Strategy</th><th>What it does</th><th>Status</th></tr>
+    <tr><td>S1 · Regime gate</td><td>Only allows buying when price is above its long-term average (100/200-day). In bear markets the bot sits in cash — that IS the strategy.</td><td><span class="pill keep">v1</span></td></tr>
+    <tr><td>S2 · Breakout trend</td><td>Buys new multi-day highs, exits on multi-day lows or a trailing stop. The strategy family with the best real-world evidence in crypto.</td><td><span class="pill keep">v1</span></td></tr>
+    <tr><td>S3 · Momentum (EWMAC)</td><td>Scales position with trend strength. Joins v1 only if it survives the cost math after buffers.</td><td><span class="pill later">maybe</span></td></tr>
+    <tr><td>S4 · Funding filter</td><td>Too few events per year to validate in the test window.</td><td><span class="pill cut">cut</span></td></tr>
+    <tr><td>S5 · ML meta-filter</td><td>Your LightGBM "should I take this trade?" filter. The reviewers found the current model is trained on news features that can't ship in an unattended bot — it must be retrained cleanly as a future registered experiment first.</td><td><span class="pill cut">cut for now</span></td></tr>
+  </table>
+  <p class="muted">Position sizes are set by <b>volatility targeting</b> (12%/year target): when markets get wild, positions shrink automatically. Typical exposure will be 20–40% of capital — that is correct behavior, not timidity.</p>
+</div>
+
+<h2>4 · The memory (your pillar)</h2>
+<div class="card blue">
+  <p>Every day the bot writes to an <b>append-only journal</b> — nothing is ever edited or deleted, corrections are new entries (like an accountant's ledger):</p>
+  <ul>
+    <li><b>Every decision, including "do nothing"</b> — with the full snapshot of data the bot saw, the model version, the config fingerprint, and a machine-readable reason ("probability below threshold", "regime gate red", "stale data — held").</li>
+    <li><b>Every simulated order and fill</b> — with the fees and slippage charged.</li>
+    <li><b>Daily equity, positions, and health metrics</b> — data drift, calibration, PnL control charts.</li>
+    <li><b>Every human intervention, missed cycle, and alert</b> — first-class events.</li>
+  </ul>
+  <p><b>The safe learning loop:</b> the journal can quickly teach us about costs, bugs and calibration — but with ~10–20 trades per 6 months it can never rank strategies (the math is unforgiving). So ideas born from the journal become <i>hypotheses</i>, hypotheses become <i>registered experiments</i> on 6 years of history in the lab, and only winners get promoted. The bot itself stays frozen during the whole test — no monthly retraining, no self-adjustment.</p>
+  <p><b>Durability:</b> nightly export + encrypted cloud backup (password escrowed outside the machine) + quarterly restore drill on a separate target. The journal is designed to outlive the PC, the code, and DuckDB itself.</p>
+</div>
+
+<h2>5 · Safety rails (what protects the account)</h2>
+<div class="card red">
+  <div class="kv">
+    <b>Hard kill</b><span>−20% drawdown → sell everything, halt, page you. Restart needs a written manual review.</span>
+    <b>Soft de-risk</b><span>−10% drawdown → position sizes cut in half automatically.</span>
+    <b>Daily loss limits</b><span>−2.5% in a day → no new entries for 48h. −5% → treated as a kill event.</span>
+    <b>Stale data</b><span>If any data feed is older than its expected publication schedule → bot holds and alerts. Blind for 3+ days → moves to cash and halts. It never trades on a guess.</span>
+    <b>Order sanity</b><span>Max order size, price bands, duplicate-order protection, daily ledger reconciliation, max 8 orders/day.</span>
+    <b>Dead-man's switch</b><span>The bot pings an external service on every successful cycle; if the pings stop (PC off, asleep, crashed), the <i>external</i> service alerts your Telegram. Silence is always detectable.</span>
+    <b>Your remote control</b><span>Telegram commands — /pause /flatten /resume /status — accepted <b>only from your Telegram user ID</b>; /flatten works even if the model is broken.</span>
+  </div>
+</div>
+
+<h2>6 · The phases</h2>
+
+<div class="phase"><div class="num">B0</div><div class="body">
+  <h3 style="margin-top:4px">Lab prerequisites <span class="muted">· small</span></h3>
+  <p>Three small changes to CryptoAcademy so its good parts can be packaged as a frozen library ("wheel") the bot installs: path override, GPU dependencies split out (the bot's environment won't even <i>contain</i> torch), and a data-schema contract so the bot can detect if a data source silently changes format years from now.</p>
+</div></div>
+
+<div class="phase"><div class="num">B1</div><div class="body">
+  <h3 style="margin-top:4px">Clean repo skeleton <span class="muted">· C:\CryptoBot</span></h3>
+  <p>New private GitHub repo with the bootstrap script (one command sets up any Windows PC: environment, pinned dependencies, secrets into Credential Manager, journal DB, historical data re-download, scheduled tasks), the journal schema, CI, secret-leak scanning, and the core safety tests.</p>
+</div></div>
+
+<div class="phase"><div class="num">B2</div><div class="body">
+  <h3 style="margin-top:4px">Strategy research <span class="muted">· in the lab, GPU-free</span></h3>
+  <p>Implement S1–S3, <b>register every configuration first</b> (~8–12), evaluate exactly once with purged cross-validation, net of conservative costs, on data up to 2026-07-11. The combination rule is frozen <i>before</i> seeing any results (choosing weights after seeing results is a hidden, unregistered experiment — the reviewers caught this). Output: one frozen champion configuration, honestly written up.</p>
+</div></div>
+
+<div class="phase"><div class="num">B3</div><div class="body">
+  <h3 style="margin-top:4px">The engine</h3>
+  <p>One daily process: fetch data → validate → decide → simulate fills → journal, all in a single transaction so a crash mid-cycle can never corrupt the record (there's a test that literally kills the process halfway and checks recovery). Conservative fill simulation: full fees, doubled slippage in wild markets, never same-bar execution — paper results are never allowed to flatter.</p>
+</div></div>
+
+<div class="phase"><div class="num">B4</div><div class="body">
+  <h3 style="margin-top:4px">Web UI + operations</h3>
+  <p>Your local dashboard (NiceGUI, only reachable from your own PC, session-token protected): positions, today's decision and its reasons in plain English, equity vs benchmarks, health panel, pause/flatten buttons. Telegram digests and pages. Scheduled tasks. <b>At the end of B4 the whole configuration is hash-frozen</b> — from then on only "plumbing" fixes are allowed; any change to the decision logic restarts the test clock.</p>
+</div></div>
+
+<div class="phase"><div class="num">B5</div><div class="body">
+  <h3 style="margin-top:4px">Burn-in <span class="muted">· ~1 month</span></h3>
+  <p>The bot runs live-paper at size zero: journals everything, trades nothing. Purpose: shake out plumbing failures (missed cycles, feed hiccups, alert storms) before the real test clock starts. Exit: two consecutive clean weeks.</p>
+</div></div>
+
+<div class="phase"><div class="num">B6</div><div class="body">
+  <h3 style="margin-top:4px">The paper test <span class="muted">· 6–18 months, date fixed in advance</span></h3>
+  <p>The acceptance rules — including the exact evaluation date, computed from the champion's real trade frequency — are registered <b>before day one</b> and can't be moved (ending a test "when the curve looks good" is a classic self-deception the reviewers flagged). The bot runs hands-off. Benchmarks run as shadow strategies inside the same engine, so nobody can recompute them favorably later.</p>
+</div></div>
+
+<div class="phase"><div class="num">B7</div><div class="body">
+  <h3 style="margin-top:4px">Verdict &amp; decision</h3>
+  <div class="verdicts">
+    <div class="card green" style="margin:0"><b>PASS</b><br><span class="muted">Zero unhandled incidents, paper matches the simulation, not inferior to the no-signal benchmark. Means: "plumbing certified + non-inferior" — explicitly <i>not</i> proof of skill (that takes years). You decide what's next.</span></div>
+    <div class="card amber" style="margin:0"><b>INCONCLUSIVE</b><br><span class="muted">Too few trades (e.g., the bot was correctly flat through a bear market). Rails certified; entry quality untested. This branch existing at all is a reviewer fix — the most likely outcome must have a pre-registered answer.</span></div>
+    <div class="card red" style="margin:0"><b>FAIL / STOP</b><br><span class="muted">Kill switch fired, negative net Sharpe, or costs ate &gt;50% of gross profit. Published post-mortem; redesign goes back through the registry. An honest failure is a valid result.</span></div>
+  </div>
+</div></div>
+
+<h2>7 · Honest expectations</h2>
+<div class="card amber">
+  <ul>
+    <li>The measured edge is <b>small</b> (MCC 0.093 at 96h). Sizing assumes a net Sharpe of 0.2–0.5 — not the numbers influencers quote.</li>
+    <li>&gt;80% of measured retail traders lose money net of costs. The realistic win for this bot is <b>losing much less in bear markets</b> than buy-and-hold, not out-earning a bull market.</li>
+    <li>6–18 months of paper trading <b>cannot mathematically prove</b> a small edge — the test certifies that the machine works and isn't worse than a mechanical benchmark. Anything claiming more would be v2's sin again.</li>
+    <li>A no-skill bot would pass some gates by luck — so we compute and publish that false-pass probability <i>next to</i> the verdict.</li>
+    <li>Any result showing net Sharpe &gt; 2 gets treated as a bug until proven otherwise.</li>
+  </ul>
+</div>
+
+<h2>8 · What it asks of you</h2>
+<div class="card">
+  <div class="kv">
+    <b>Daily</b><span>Nothing. (Optionally glance at the Telegram digest.) Real problems page you.</span>
+    <b>Monthly</b><span>~30–60 min: open the dashboard, check the health panel, equity vs benchmarks, and the alert log.</span>
+    <b>Quarterly</b><span>Restore drill + dependency updates + a research session only if ideas actually accumulated.</span>
+    <b>Total</b><span><b>≈3–4 hours/month.</b> The draft plan demanded 10–15; the reviewers cut every ritual that didn't pay for itself.</span>
+  </div>
+  <p class="muted">Hard rules preserved: the local AI/GPU never runs automatically (torch isn't even installed in the bot's environment, and a test enforces it), and nothing here executes real trades or moves real money.</p>
+</div>
+
+<div class="footer">
+  CryptoBot v1 plan summary · generated 2026-07-15 · full plan: <code>docs/plan-bot-v1.md</code> · research &amp; reviews by 9 agents (6 research + 3 adversarial)
+</div>
+
+</div>
+</body>
+</html>
