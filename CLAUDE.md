@@ -135,7 +135,9 @@ local-AI policy below — this is a hard rule, not a preference.
   (thinking mode returns empty response). One big model resident at a time.
   qwen3-embedding:4b dedup (threshold 0.87), qwen3.6:27b coding. English-first
   everywhere (user decision; gemma4 was removed).
-- **Torch**: 2.13+cu130 native Windows (index pinned in pyproject); set
+- **Torch**: 2.13+cu130 native Windows (index pinned in pyproject; torch/
+  chronos/shap/optuna live in the `train` extra since B0 — lab sync is
+  `uv sync --extra train --system-certs`, the base wheel stays CPU-only); set
   `CUBLAS_WORKSPACE_CONFIG=":4096:8"` before training; no torch.compile.
 - **git push**: PAT in `.env` (`GITHUB_PAT`), push via
   `git push "https://x-access-token:$pat@github.com/ianfernandezmma-ux/cryptoacademy-v3.git" main`
