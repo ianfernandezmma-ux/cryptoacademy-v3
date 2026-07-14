@@ -63,7 +63,7 @@
 
 <h2>1 · The big picture</h2>
 <div class="card blue">
-  <p><b>What we are building:</b> a bot that decides once a day whether to hold BTC/ETH or stay in cash, executes those decisions automatically in a simulated (paper) account against real market prices, records <i>everything</i> it does in a permanent memory, and shows you the results in a private web dashboard on your PC. You never touch code. It never touches the GPU, never runs the local AI, and needs <b>zero real API keys</b> while in paper mode.</p>
+  <p><b>What we are building:</b> a bot that decides once a day whether to hold BTC/ETH or stay in cash, executes those decisions automatically in a simulated (paper) account against real market prices, records <i>everything</i> it does in a permanent memory, and shows you the results in a private web dashboard on your PC. You never touch code. Its trading decisions never need the GPU; the local AI runs <b>only while your manual switch is on</b> (<code>ai on / ai off</code> — it can never start itself in the middle of a game), and it needs <b>zero real API keys</b> while in paper mode.</p>
   <p><b>What we are NOT building (yet):</b> anything that trades real money, anything intraday, shorts/leverage, stock markets, or a bot that "rewires itself" from its own trades. Those are explicitly out of v1.</p>
 </div>
 
@@ -195,7 +195,7 @@
     <b>Quarterly</b><span>Restore drill + dependency updates + a research session only if ideas actually accumulated.</span>
     <b>Total</b><span><b>≈3–4 hours/month.</b> The draft plan demanded 10–15; the reviewers cut every ritual that didn't pay for itself.</span>
   </div>
-  <p class="muted">Hard rules preserved: the local AI/GPU never runs automatically (torch isn't even installed in the bot's environment, and a test enforces it), and nothing here executes real trades or moves real money.</p>
+  <p class="muted">Hard rules preserved: the local AI/GPU never <i>starts on its own</i> — it works only while your <code>ai on</code> switch is enabled (with optional auto-off, e.g. <code>ai on --hours 4</code>), so gaming is never interrupted; the bot's trading decisions run on CPU and never depend on the AI being on; and nothing here executes real trades or moves real money.</p>
 </div>
 
 <div class="footer">

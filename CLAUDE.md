@@ -101,9 +101,10 @@ OptionsChainSnapshot 08:05. They hold the venv exe and the DuckDB lock. These
 are DATA-ONLY (no GPU) and stay enabled so forward-only archives (Binance OI
 expires ~30d, Deribit option snapshots have no history) don't lose data.
 
-**NewsScoring is DISABLED** (Ian's machine is shared with gaming): the local AI
-must never run on its own. See the local-AI policy below — this is a hard
-rule, not a preference.
+**NewsScoring is ENABLED but gated by Ian's AI switch** (machine shared with
+gaming): the local AI never *starts on its own* — every AI entry point skips
+cleanly unless Ian has turned the switch on (`cryptoacademy ai on`). See the
+local-AI policy below — this is a hard rule, not a preference.
 
 ## Environment gotchas (they WILL bite)
 
@@ -113,17 +114,22 @@ rule, not a preference.
 - **DuckDB single-writer**: collector/scorer hold `data/news.duckdb`; retry
   connects (up to 30×20s observed), hold write connections briefly.
 - **Windows console**: `$env:PYTHONIOENCODING="utf-8"` for non-ASCII prints.
-- **Local AI is OFF by default (shared gaming machine — HARD RULE)**: nothing
-  may touch the local GPU model automatically. Every Ollama entry point
-  (`scoring._generate`, `scoring.embed`, `regime.classify_day`) is gated by
-  `cryptoacademy.localai.ensure_local_ai_allowed`, which raises unless the run
-  sets `CRYPTOACADEMY_ENABLE_LOCAL_AI=1`. The `score-news` and `backfill-regime`
-  CLI commands skip cleanly (no Telegram alarm) when it's unset. To run the AI
-  on Ian's explicit "activa la IA" instruction, authorize that ONE command:
-  `$env:CRYPTOACADEMY_ENABLE_LOCAL_AI='1'; .venv\Scripts\python.exe -m cryptoacademy score-news`
-  (the var isn't persisted, so it lasts one process). `tests/test_localai_gate.py`
-  is the CI guarantee. Torch training (GPU) is also never scheduled — it only
-  runs when a phase command is launched by hand.
+- **Local AI runs ONLY while Ian's switch is on (shared gaming machine — HARD
+  RULE, updated 2026-07-15)**: it never *starts on its own*, but it is allowed
+  to run — including from scheduled tasks — while Ian has it enabled. The
+  switch: `cryptoacademy ai on` (optional `--hours N` auto-off) / `ai off` /
+  `ai status`, implemented as the flag file `data/local_ai.on`; NOTHING may
+  create that file automatically — only Ian's explicit command (or an
+  equivalent user-facing toggle, e.g. the future bot UI). Every Ollama entry
+  point (`scoring._generate`, `scoring.embed`, `regime.classify_day`) is gated
+  by `cryptoacademy.localai.ensure_local_ai_allowed`, which raises unless the
+  switch is on or the run sets `CRYPTOACADEMY_ENABLE_LOCAL_AI=1` (one-process
+  override, still supported). `score-news` / `backfill-regime` skip cleanly
+  (no Telegram alarm) when off; the NewsScoring scheduled task is ENABLED and
+  simply no-ops while the switch is off. `tests/test_localai_gate.py` is the
+  CI guarantee (default-deny, expiry, fail-closed on corrupt flag). Torch
+  training (GPU) is still never scheduled — phase commands launched by hand
+  only, ideally while the switch is on so Ian knows the GPU is claimed.
 - **Local LLMs (Ollama)**: qwen3.6:35b-a3b = scorer/regime/reports — ALWAYS
   `think:false, temperature 0, format=json_schema` for structured calls
   (thinking mode returns empty response). One big model resident at a time.

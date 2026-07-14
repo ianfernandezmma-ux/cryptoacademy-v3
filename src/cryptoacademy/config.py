@@ -15,7 +15,14 @@ from dotenv import load_dotenv
 # TLS-intercepting proxy/antivirus whose root CA is not in certifi's bundle.
 truststore.inject_into_ssl()
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# CRYPTOACADEMY_HOME lets an installed copy of this package (e.g. the frozen
+# wheel inside the CryptoBot repo) point at a real project root. Without it a
+# wheel install would resolve PROJECT_ROOT into site-packages and every
+# data/config path would silently break.
+_home_override = os.environ.get("CRYPTOACADEMY_HOME", "").strip()
+PROJECT_ROOT = (
+    Path(_home_override).resolve() if _home_override else Path(__file__).resolve().parents[2]
+)
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_DIR = DATA_DIR / "raw"
 LOGS_DIR = PROJECT_ROOT / "logs"

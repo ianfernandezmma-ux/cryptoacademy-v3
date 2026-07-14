@@ -1,9 +1,12 @@
 # Plan: CryptoBot v1 — Personal Automated Paper-Trading Bot
 
-**Status: FINAL v1.1** (2026-07-15) — draft v1.0 was adversarially reviewed by
+**Status: FINAL v1.2** (2026-07-15) — draft v1.0 was adversarially reviewed by
 three independent agents (statistics/overfitting, security/operations,
-economics/coherence); all confirmed findings are integrated below. The
-changelog of what the review changed is in §11.
+economics/coherence); all confirmed findings are integrated below (changelog
+in §11). v1.2 updates the local-AI policy per Ian: the local AI is allowed to
+run — **but only while Ian's manual switch is on** (`cryptoacademy ai on/off`,
+never auto-started, so it can't interrupt gaming). The bot's *decisions* still
+never depend on the AI being on.
 **Supersedes** `docs/plan-v3.md` as the active execution plan while the
 capstone is paused (Ian's decision, 2026-07-15). The capstone (Phase 6 web)
 resumes only after this bot is complete and stable.
@@ -200,9 +203,13 @@ The v1 production model/strategies may only use **re-downloadable public
 feeds**: Binance klines/funding (REST for the live edge, Vision archives for
 backfill only — Vision publishes too late for an 08:45 decision), derivatives
 metrics with history, DVOL, FRED/ALFRED, Coin Metrics community, F&G, ETF
-flows. **Excluded from v1 production:** news/LLM-scored features (require
-`news.duckdb` + local AI — incompatible with an unattended bot and the
-local-AI hard rule) and forward-only archives (Binance OI >30d, Deribit
+flows. **Excluded from v1 production:** news/LLM-scored features — for three
+reasons that survive the new AI-switch policy: (a) `news.duckdb` with its
+per-article sighting stamps is lab-local and cannot be re-downloaded on a
+second PC; (b) the bot's decisions must never depend on the AI switch being
+on (Ian may keep it off for days while gaming — a decision pipeline that
+starves without the GPU is not unattended); (c) the S5 contamination finding
+below. Also excluded: forward-only archives (Binance OI >30d, Deribit
 snapshots — cannot be re-downloaded on a second PC, becoming a hidden hard
 dependency on the lab). **Enforcement is a CI/promotion-time check that
 diffs the model card's feature list against the allowed blocks and fails
@@ -371,11 +378,15 @@ row-counts/hashes, journaled as `restore_drill` (reviews C3, m6).
   mechanical outlier rule: "difference survives deleting the challenger's 2
   best days") are pre-registered then, per the draft's champion/challenger
   design.
-- **No scheduled LLM roles in v1.** Plain-English "why this trade fired /
-  was skipped" is **derived mechanically from the structured ledger** for
-  the UI. The LLM reviewer (narrate/tag/hypothesize, never parameters, never
-  scheduled — local-AI hard rule) is an optional manual tool, writing via
-  the UI process's writer channel only.
+- **LLM journal roles are switch-gated, never load-bearing.** Plain-English
+  "why this trade fired / was skipped" is **derived mechanically from the
+  structured ledger** for the UI — always available, no AI needed. The LLM
+  reviewer (narrate weekly summaries, tag closed trades with the error
+  taxonomy, propose hypotheses — never parameters, never evaluation results)
+  runs **only while Ian's AI switch is on** (`ai on`): pending review work
+  queues and executes when the switch is next enabled, and skips silently
+  otherwise. It writes via the UI process's writer channel only. The bot's
+  decision path has zero dependency on any of this.
 - **Hypothesis hygiene (review F10):** each hypothesis is tagged with the
   observation window that generated it; any validating CV must exclude that
   window (enforceable from `hypothesis` provenance).
@@ -426,12 +437,18 @@ always happens on the multi-year research history in the lab.
   DPAPI secrets). All logging to UTF-8 files (pythonw has no stdout). B4
   exit criterion: `status` + `test-telegram` pass **from the scheduled
   context**.
-- **GPU/local-AI rule, strongest form:** torch is not installed in the bot
-  venv at all; `test_no_gpu.py` asserts `find_spec("torch") is None` AND
-  that no bot import path reaches `cryptoacademy.models.dl`,
-  `models.chronos_bench`, `news.scoring`, or `news.regime` (the Ollama entry
-  points — review hardening); the bot never sets
-  `CRYPTOACADEMY_ENABLE_LOCAL_AI`.
+- **GPU/local-AI rule (updated 2026-07-15):** the local AI never *starts on
+  its own* — it runs only while Ian's manual switch is on
+  (`cryptoacademy ai on [--hours N]` / `ai off` / `ai status`, flag file
+  `data/local_ai.on`; the future bot UI gets the same toggle). The bot's
+  *decision path* remains GPU-free by construction: inference is LightGBM on
+  CPU, torch is not installed in the bot venv (`test_no_gpu.py` asserts
+  `find_spec("torch") is None` and that no *decision-path* import reaches
+  `cryptoacademy.models.dl`/`chronos_bench`), and every Ollama call goes
+  through `ensure_local_ai_allowed` — which honors the switch and fails
+  closed. The bot never creates the flag file itself; only Ian's explicit
+  action does. So a running game can never be interrupted, and turning the
+  switch off mid-batch stops AI work at the next gate check.
 - **Secrets:** Windows Credential Manager via keyring (Telegram token +
   allowlisted user ID, heartbeat ping URL, restic password — escrowed per
   §2.4). `.env` = non-secrets only (including explicit proxy). gitleaks
@@ -583,8 +600,9 @@ pristine window.
 
 24h horizon (registered-trial re-entry only), S4 funding overlay, S5
 meta-labeling (requires §2.5-compliant retrain as a new trial), challenger
-machinery (schema-ready, built when first needed), monthly refits, scheduled
-LLM roles, TCA reporting (columns kept), timing-regression gates,
+machinery (schema-ready, built when first needed), monthly refits,
+LLM roles in the decision path (journal LLM roles are switch-gated per §6),
+TCA reporting (columns kept), timing-regression gates,
 stocks/multi-market (architecture stays asset-agnostic; revisit after B7),
 live money (separate future decision), futures/shorting/leverage, intraday,
 news features in production, auto-retraining of any kind, capstone Phase 6
@@ -636,3 +654,15 @@ two-writer policy with disjoint tables/schedules; clock-drift check; missed-
 cycle budget inside G1; wheel built from git archive + wheel-content
 scanning; explicit proxy config + scheduled-context smoke tests; restore
 `--target` guard.
+
+**v1.1 → v1.2 (Ian's correction, 2026-07-15):** the local-AI policy is a
+manual on/off switch, not a prohibition. The old pain was the AI *starting by
+itself* and killing game performance; the fix is that it runs only while
+Ian's switch (`cryptoacademy ai on/off`, flag `data/local_ai.on`, optional
+auto-off hours) is enabled — implemented in `localai.py` + CLI, CI-guaranteed
+by the updated `test_localai_gate.py`, and the NewsScoring scheduled task is
+re-enabled (it no-ops while the switch is off). Plan deltas: §2.5's news
+exclusion re-justified on portability + decision-independence grounds (not on
+a "never" rule); §6 LLM journal roles switch-gated instead of cut; §7 GPU
+rule reworded (decision path stays CPU/torch-free; Ollama calls gated by the
+switch).

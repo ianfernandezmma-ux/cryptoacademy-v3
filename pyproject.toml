@@ -17,8 +17,16 @@ dependencies = [
     "truststore>=0.10",
     "pyarrow>=18",
     "lightgbm>=4.6.0",
-    "optuna>=4.9.0",
     "scikit-learn>=1.9.0",
+]
+
+# Heavy research/training-only dependencies. The base install is deliberately
+# CPU-inference-sized so the CryptoBot repo can vendor this package as a wheel
+# without dragging torch/CUDA onto machines that only run the bot.
+# Lab setup: uv sync --extra train --system-certs
+[project.optional-dependencies]
+train = [
+    "optuna>=4.9.0",
     "shap>=0.52.0",
     "torch>=2.13.0",
     "chronos-forecasting>=2.0",

@@ -157,15 +157,16 @@ def backfill_gdelt(max_days: int = 30) -> None:
 def score_news(limit: int = 500) -> None:
     """Score pending articles with the local LLM (dedup + structured extraction).
 
-    Local AI is OFF by default on this shared gaming machine: this command does
-    nothing unless CRYPTOACADEMY_ENABLE_LOCAL_AI=1 is set for the run.
+    Local AI is OFF by default on this shared gaming machine: this command
+    skips cleanly unless Ian's switch is on (`cryptoacademy ai on`) or
+    CRYPTOACADEMY_ENABLE_LOCAL_AI=1 is set for the run.
     """
     _setup_logging("scoring")
-    from cryptoacademy.localai import ENABLE_ENV, local_ai_enabled
+    from cryptoacademy.localai import local_ai_enabled
 
     log = logging.getLogger("score_news")
     if not local_ai_enabled():
-        msg = f"score-news skipped: local AI is OFF (set {ENABLE_ENV}=1 to run it)."
+        msg = "score-news skipped: local AI is OFF (turn on with 'cryptoacademy ai on')."
         log.warning(msg)
         typer.echo(msg)
         return
@@ -282,15 +283,16 @@ def run_sweep(n_trials: int = 40) -> None:
 def backfill_regime(max_days: int = 5000) -> None:
     """Score daily risk regimes over all harvested GDELT days (resumable).
 
-    Local AI is OFF by default on this shared gaming machine: this command does
-    nothing unless CRYPTOACADEMY_ENABLE_LOCAL_AI=1 is set for the run.
+    Local AI is OFF by default on this shared gaming machine: this command
+    skips cleanly unless Ian's switch is on (`cryptoacademy ai on`) or
+    CRYPTOACADEMY_ENABLE_LOCAL_AI=1 is set for the run.
     """
     _setup_logging("regime")
-    from cryptoacademy.localai import ENABLE_ENV, local_ai_enabled
+    from cryptoacademy.localai import local_ai_enabled
 
     log = logging.getLogger("regime")
     if not local_ai_enabled():
-        msg = f"backfill-regime skipped: local AI is OFF (set {ENABLE_ENV}=1 to run it)."
+        msg = "backfill-regime skipped: local AI is OFF (turn on with 'cryptoacademy ai on')."
         log.warning(msg)
         typer.echo(msg)
         return
@@ -539,6 +541,65 @@ def status() -> None:
         for f in files:
             df = pl.scan_parquet(f).select(pl.len()).collect()
             typer.echo(f"{label}: {f.relative_to(config.RAW_DIR)} — {df.item()} rows")
+
+
+@app.command()
+def export_contract(out: str = "configs/input_contract.json") -> None:
+    """Export the input-schema contract (column names+dtypes per raw block).
+
+    Ships with the promoted model card; the bot validates every fetched frame
+    against it so upstream schema drift fails loud instead of corrupting the
+    frozen pipeline's features."""
+    from cryptoacademy.contract import contract_from_parquet_dir
+    from cryptoacademy.contract import export_contract as _export
+
+    patterns = {
+        "klines": "klines/*/*/*.parquet",
+        "funding": "funding/*/*.parquet",
+        "metrics": "metrics/*/*.parquet",
+        "open_interest": "open_interest/*/*.parquet",
+        "sentiment": "sentiment/*.parquet",
+        "options": "options/*.parquet",
+        "attention": "attention/*.parquet",
+        "positioning": "positioning/*.parquet",
+    }
+    contract = contract_from_parquet_dir(
+        config.RAW_DIR, patterns, generated_by="cryptoacademy export-contract"
+    )
+    path = _export(contract, config.PROJECT_ROOT / out)
+    typer.echo(f"Contract v{contract['contract_version']} -> {path}")
+    for name, block in contract["blocks"].items():
+        typer.echo(f"  {name}: {len(block['columns'])} columns")
+
+
+ai_app = typer.Typer(no_args_is_help=True, help="Manual switch for the local AI (Ollama/GPU).")
+app.add_typer(ai_app, name="ai")
+
+
+@ai_app.command("on")
+def ai_on(hours: float | None = typer.Option(None, help="Auto-off after N hours.")) -> None:
+    """Turn the local AI ON (until 'ai off', or --hours). Never runs on its own."""
+    from cryptoacademy import localai
+
+    localai.switch_on(hours)
+    typer.echo(f"Local AI: {localai.switch_status()}")
+
+
+@ai_app.command("off")
+def ai_off() -> None:
+    """Turn the local AI OFF (takes effect at the next gate check)."""
+    from cryptoacademy import localai
+
+    localai.switch_off()
+    typer.echo(f"Local AI: {localai.switch_status()}")
+
+
+@ai_app.command("status")
+def ai_status() -> None:
+    """Show whether the local AI switch is on."""
+    from cryptoacademy import localai
+
+    typer.echo(f"Local AI: {localai.switch_status()}")
 
 
 if __name__ == "__main__":
