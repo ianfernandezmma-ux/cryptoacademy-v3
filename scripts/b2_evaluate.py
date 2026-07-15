@@ -66,6 +66,7 @@ def load_daily(asset: str) -> pl.DataFrame:
     path = config.RAW_DIR / "klines" / asset / "spot" / f"{asset}USDT_1h.parquet"
     df = (
         pl.read_parquet(path)
+        .sort("open_time")  # daily close must be the LAST bar by time, not file order
         .with_columns(pl.col("open_time").dt.date().alias("day"))
         .group_by("day", maintain_order=True)
         .agg(pl.col("close").last())
@@ -76,6 +77,8 @@ def load_daily(asset: str) -> pl.DataFrame:
     gaps = [(a, b) for a, b in itertools.pairwise(days) if (b - a).days != 1]
     if gaps:
         raise RuntimeError(f"{asset}: daily gaps present: {gaps[:5]}")
+    if days[0] != date(2020, 1, 1):  # pins the frozen expanding-hv definition
+        raise RuntimeError(f"{asset}: series must start 2020-01-01, got {days[0]}")
     return df
 
 
