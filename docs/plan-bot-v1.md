@@ -463,6 +463,35 @@ always happens on the multi-year research history in the lab.
 
 ## 8. Paper-trading acceptance (pre-registered BEFORE the clock starts)
 
+> **v1.3 AMENDMENTS (2026-07-15, B2.1 round — supersede conflicting text
+> below; the B6 registration consolidates):**
+> 1. **PASS-OPS verdict split** (audit F1/F6: at the champion's 10.9 RT/yr,
+>    P(≥30 RTs in 18 months) ≈ 0.15% — the old design was pre-committed to
+>    INCONCLUSIVE). Hard gates = **G1 (operations) + G2 (paper-vs-simulation
+>    tracking)** only — both accrue daily and are decidable. G3/G4,
+>    round-trip counts, and hit rates become a **reported appendix with
+>    CIs**, never gates. The expected-verdict arithmetic (P(≥30 RT), null
+>    false-pass rate) is printed in the B6 registration itself.
+> 2. **Month-6 interim checkpoint**: G1+G2 graded once, deterministically,
+>    performance-blind. A real milestone instead of an 18-month void.
+> 3. **Shadow set from day 1**: the 6 non-champion B2 identities + all
+>    benchmarks run as `is_shadow` strategies, hash-frozen at B4. Family-
+>    pooled diagnostics use cluster-aware CIs. **No mid-window champion
+>    switch under any circumstances.** (B3 is therefore a multi-config
+>    engine.)
+> 4. **Planned-outage taxonomy** (host = Ian's PC, decision 2026-07-15):
+>    absences declared in the journal BEFORE departure; absence >72h →
+>    flatten-before-absence fires as a *mechanical* rail (grades normally,
+>    not as discretion); G2 gaps reconstructed from re-downloadable inputs
+>    by the pre-registered rule; declared outages are excluded from the
+>    missed-cycle budget.
+> 5. **Paper equity = 1,000 USDT, registered** (Ian). Live copy, if B7 ever
+>    passes and Ian decides, replicates the paper config exactly.
+> 6. **Production config** = `S2_DONCH_N20_VT20_YIELD` (hash 44ac1075785c,
+>    B2.1 round): vol target 0.20, DTB3 cash-yield accounting, rails
+>    soft 12% / hard 20% / daily 4%-8%. Both Sharpe conventions reported
+>    everywhere.
+
 Registered in the bot registry as its own entry, thresholds and formulas
 included, **before B6 day 1**. Honest framing: 6–18 months cannot prove a
 small edge (MinTRL for SR 1.0 ≈ 2.5–3 years). The paper phase certifies
@@ -654,6 +683,17 @@ two-writer policy with disjoint tables/schedules; clock-drift check; missed-
 cycle budget inside G1; wheel built from git archive + wheel-content
 scanning; explicit proxy config + scheduled-context smoke tests; restore
 `--target` guard.
+
+**v1.2 → v1.3 (audit round + B2.1, 2026-07-15):** five pre-B3 auditors ran
+(reports in docs/reviews/); the stopping rule was adopted (ONE amendment
+round before B3 — used by B2.1, now spent); §8 amended (PASS-OPS split,
+month-6 checkpoint, shadow set ⇒ B3 = multi-config engine, outage taxonomy,
+equity 1,000 USDT); production config re-registered at VT 0.20 + DTB3 cash
+yield (12.6%/yr, maxDD 10.5% backtest-implied; adoption by frozen rule,
+b2.1-results.md); registry backed into git; sql() guard, --locked syncs and
+wheel SHA256 fixed; remaining code findings = pre-B3 fix batch
+(docs/reviews/2026-07-15-audit-synthesis.md). B3 start committed:
+2026-07-16.
 
 **v1.1 → v1.2 (Ian's correction, 2026-07-15):** the local-AI policy is a
 manual on/off switch, not a prohibition. The old pain was the AI *starting by
