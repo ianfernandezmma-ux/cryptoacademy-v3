@@ -22,3 +22,12 @@ mlflow.db
 # OS/editor
 Thumbs.db
 .DS_Store
+
+# Exception: the trial registry is the statistical foundation (DSR N) and is
+# NOT re-downloadable — it must survive disk failure. Small append-only JSONL.
+!data/
+data/*
+!data/trials/
+!data/trials/trials.jsonl
+data/trials/*
+!data/trials/trials.jsonl
