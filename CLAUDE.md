@@ -6,10 +6,20 @@ reported OOS predictions; same-day news joined to the midnight bar; real
 numbers were MCC ~0.35 / Sharpe 0.86, not the published 0.56/3.5+). v3's
 architecture exists to make that class of error impossible.
 
-**Read next, in order:** `docs/audit-2026-07-11.md` (full-code audit: 26 fixes
-applied, refuted-findings list, statistics verdicts) → `docs/plan-v3.md`
-(CURRENT execution plan) → `docs/phase4-handoff.md` (conventions, audit
-caveats) → `docs/phase4-plan.md` → `PLAN.md` (original master plan).
+**THE PLAN: `docs/plan-bot-v2.md` is the ONLY active plan (2026-07-16).**
+Read it FIRST after CLAUDE.md — it is the map: current state, the three
+tracks (bot B3–B7 / sleeve research C1–C3 / ops & control center), and the
+decisions reserved for Ian. It incorporates `docs/plan-bot-v1.md` §§2–9 as
+binding engineering law for the bot (frozen champion `S2_DONCH_N20_VT20_YIELD`,
+B3 in progress) and is grounded in the verified research report
+`docs/research/bot-improvement-research-2026-07-16.md` (funding-carry +
+cross-sectional-momentum sleeves). The capstone (plan-v3.md) is PAUSED.
+
+**Read next, in order:** `docs/plan-bot-v2.md` (THE plan) →
+`docs/plan-bot-v1.md` (Track-1 engineering spec) →
+`docs/research/bot-improvement-research-2026-07-16.md` (evidence base) →
+`docs/audit-2026-07-11.md` → `docs/phase4-handoff.md` → `docs/plan-v3.md`
+(paused capstone context).
 
 ## The two iron rules
 
@@ -42,26 +52,26 @@ caveats) → `docs/phase4-plan.md` → `PLAN.md` (original master plan).
   articles (calibrated prompt v2, gazetteer-anonymized), daily risk-regime
   scores (pilot-validated classifier v3).
 
-## Pending — see docs/plan-v3.md (authoritative after the 2026-07-11 audit)
+## Pending — see docs/plan-bot-v2.md (THE plan; plan-v3 batches are PAUSED)
 
-1. **Audit 2026-07-11 APPLIED**: 26 confirmed findings fixed (daily-update now
-   refreshes metrics/DVOL/wiki/COT + freshness gate; lockbox cutoff ENFORCED
-   in build_training_frame — 2026+ events excluded from all training; news
-   era cutover + tone/10 rescale; regime slugs anonymized, PROMPT v4;
-   rotation permutation in regime gates; dead-letter scoring; etc.). Read
-   `docs/audit-2026-07-11.md` before touching anything it names.
-2. **Lockbox reality**: 2026-01-01→07-11 was consumed by 4.2–4.4 selection —
-   report it only as a contaminated holdout; the pristine lockbox is
-   2026-07-12 → end of Phase 5, untouched by construction.
-3. **Batch A (runnable now, GPU day)**: labels v2 (hourly-grid reindex; needs
-   Ian's OK) → backfill-regime (v4, full series) → validate-regime →
-   news-block re-ablation + with/without-regime (4.3 gate-2 close) →
-   re-anchor 4.2 selections under the cutoff → ensemble check → 5-seed
-   reporting. Then Batch B = Phase 4.5 tribunal per plan-v3.
-4. **Meta-labeling claim downgraded**: pooled uplift +5.4pp, t≈1.85 — cite as
-   suggestive, never as established, until Phase-5 return streams.
-5. Phase 5 (backtest realista + paper, net-of-cost acceptance pre-registered)
-   and Phase 6 (web) per plan-v3 batches D/E.
+1. **Track 1 (critical path): B3 engine build** in `C:\CryptoBot` per
+   plan-bot-v1 §9 (multi-config for the shadow set; kill-mid-cycle +
+   golden-day tests are exit criteria). Then B4 (UI/ops + hash freeze) →
+   B5 burn-in → B6 paper window → B7 review.
+2. **Track 2: C1 carry measurement** (pre-register spec, then measure
+   net-of-cost funding carry from our own 2020→now funding history;
+   go/no-go) → C2 cross-sectional momentum over PIT-safe top-N universe
+   (needs Ian's OK to start; lockbox ≤ 2026-07-11 only).
+3. **Track 3: control center** (localhost dashboard for scheduled tasks +
+   AI switch + runs.jsonl audit trail) and the fix batch in flight
+   (ETF-flows 403, OI truncated parquet).
+4. **Standing caveats**: audit 2026-07-11 applied — read
+   `docs/audit-2026-07-11.md` before touching anything it names; pristine
+   lockbox = 2026-07-12+ (2026-H1 is a contaminated holdout); meta-labeling
+   is "suggestive", never "established"; attention-proxy signals REFUTED
+   (2026-07-16 research) — do not use.
+5. **Capstone batches A/B (labels v2, regime v4, 4.5 tribunal) and phases
+   5–6 are PAUSED** with the capstone; they resume only after B7.
 
 ## Layout
 
