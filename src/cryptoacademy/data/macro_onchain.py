@@ -289,14 +289,42 @@ def download_stablecoins() -> pl.DataFrame:
 
 # --------------------------------------------------------------- Farside ETF
 
+# Primary: full-history pages. Fallback: the compact recent-flows pages —
+# same table format (header split over two rows, handled by the parser) and
+# ~13 recent business days, enough to keep the daily first-print vintage
+# alive when Cloudflare blocks the all-data URL.
 FARSIDE = {
-    "BTC": "https://farside.co.uk/bitcoin-etf-flow-all-data/",
-    "ETH": "https://farside.co.uk/ethereum-etf-flow-all-data/",
+    "BTC": (
+        "https://farside.co.uk/bitcoin-etf-flow-all-data/",
+        "https://farside.co.uk/btc/",
+    ),
+    "ETH": (
+        "https://farside.co.uk/ethereum-etf-flow-all-data/",
+        "https://farside.co.uk/eth/",
+    ),
 }
-CHROME_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-)
+# Cloudflare bot-scores bare/outdated clients; send a coherent, current
+# Chrome header set (no explicit Accept-Encoding — httpx negotiates what it
+# can actually decode).
+BROWSER_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+    ),
+    "Accept": (
+        "text/html,application/xhtml+xml,application/xml;q=0.9,"
+        "image/avif,image/webp,image/apng,*/*;q=0.8"
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Sec-Ch-Ua": '"Not)A;Brand";v="8", "Chromium";v="143", "Google Chrome";v="143"',
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": '"Windows"',
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Upgrade-Insecure-Requests": "1",
+}
 
 
 def _parse_farside_table(html: str) -> pl.DataFrame:
@@ -316,8 +344,21 @@ def _parse_farside_table(html: str) -> pl.DataFrame:
         try:
             date = datetime.strptime(cells[0], "%d %b %Y").replace(tzinfo=UTC)
         except ValueError:
-            if header is None and len(cells) > 3 and cells[0] in ("", "Date"):
-                header = cells
+            # the compact pages split the header over two rows (tickers on
+            # one, 'Total' on another) — merge all header-shaped rows seen
+            # before the first data row, first non-empty cell per column wins
+            if not rows and len(cells) > 3 and cells[0] in ("", "Date"):
+                if header is None:
+                    header = cells
+                else:
+                    header = [
+                        h or c
+                        for h, c in zip(
+                            header + [""] * (len(cells) - len(header)),
+                            cells + [""] * (len(header) - len(cells)),
+                            strict=True,
+                        )
+                    ]
             continue  # issuer-name/fee/seed/footer rows
         for i, raw in enumerate(cells[1:], start=1):
             if header is None or i >= len(header) or not header[i]:
@@ -337,49 +378,97 @@ def _parse_farside_table(html: str) -> pl.DataFrame:
     return pl.DataFrame(rows)
 
 
-def download_etf_flows() -> pl.DataFrame:
-    frames = []
-    with httpx.Client(
-        timeout=60.0, headers={"User-Agent": CHROME_UA}, follow_redirects=True
-    ) as client:
-        for asset, url in FARSIDE.items():
-            # Cloudflare blocks intermittently (403); each missed day is a
-            # PERMANENT first-print vintage gap, so retry hard and alert
-            # distinctly so a manual snapshot can still be taken in time
-            resp = None
-            for attempt in range(4):
+def _fetch_farside_asset(
+    client: httpx.Client, asset: str, urls: tuple[str, ...]
+) -> pl.DataFrame | None:
+    """Try each URL with retries; None when Cloudflare blocks everything."""
+    for url in urls:
+        for attempt in range(4):
+            try:
                 resp = client.get(url)
-                if resp.status_code != 403:
-                    break
-                time.sleep(15 * (attempt + 1))
-            if resp.status_code == 403:
-                from cryptoacademy.notify import telegram
+            except httpx.HTTPError as exc:
+                log.warning("etf flows %s: %s on %s", asset, exc, url)
+                time.sleep(20 * (attempt + 1))
+                continue
+            if resp.status_code == 200:
+                df = _parse_farside_table(resp.text)
+                if len(df):
+                    return df.with_columns(pl.lit(asset).alias("asset"))
+                log.warning("etf flows %s: %s returned 200 but no rows parsed", asset, url)
+                break  # page layout problem, retrying won't help — next URL
+            log.warning("etf flows %s: HTTP %d from %s (attempt %d)",
+                        asset, resp.status_code, url, attempt + 1)
+            time.sleep(20 * (attempt + 1))
+    return None
 
-                telegram.send(
-                    f"ETF flows: Farside 403 persists for {asset} — today's "
-                    "first-print vintage will be LOST unless snapped manually"
-                )
-            resp.raise_for_status()
-            df = _parse_farside_table(resp.text).with_columns(pl.lit(asset).alias("asset"))
-            frames.append(df)
-    df = pl.concat(frames).with_columns(
+
+def download_etf_flows() -> pl.DataFrame:
+    dest = config.RAW_DIR / "etf_flows"
+    dest.mkdir(parents=True, exist_ok=True)
+    ppath = dest / "farside.parquet"
+    prior = pl.read_parquet(ppath) if ppath.exists() else None
+
+    fresh_frames, blocked = [], []
+    with httpx.Client(timeout=60.0, headers=BROWSER_HEADERS, follow_redirects=True) as client:
+        for asset, urls in FARSIDE.items():
+            # Cloudflare blocks intermittently (403); each missed day is a
+            # PERMANENT first-print vintage gap, so retry hard, fall back to
+            # the compact page, and alert distinctly so a manual snapshot can
+            # still be taken in time
+            df = _fetch_farside_asset(client, asset, urls)
+            if df is None:
+                blocked.append(asset)
+            else:
+                fresh_frames.append(df)
+
+    if blocked:
+        from cryptoacademy.notify import telegram
+
+        telegram.send(
+            f"ETF flows: Farside blocked for {', '.join(blocked)} after all "
+            "retries + fallback URL — today's first-print vintage will be "
+            "LOST unless snapped manually; keeping last good data"
+        )
+    if not fresh_frames:
+        if prior is None:
+            raise RuntimeError("etf flows: Farside blocked and no prior data on disk")
+        # degrade gracefully: leave files untouched; the freshness gate in
+        # daily-update flags the dataset once it stays blocked for days
+        log.warning("etf flows: all sources blocked — keeping stale parquet")
+        return prior
+
+    fresh = pl.concat(fresh_frames).with_columns(
         # flows for day D fill in overnight; final by 12:00 UTC on D+1
         (pl.col("date").dt.replace_time_zone(None) + pl.duration(days=1, hours=12))
         .dt.replace_time_zone("UTC")
         .alias("published_at_utc")
     )
-    dest = config.RAW_DIR / "etf_flows"
-    dest.mkdir(parents=True, exist_ok=True)
-    df.write_parquet(dest / "farside.parquet")
+    # the compact fallback page only covers recent days, and a blocked asset
+    # contributes nothing — retain prior rows outside each asset's freshly
+    # fetched window so one degraded fetch never truncates the history
+    parts = [fresh]
+    if prior is not None:
+        for asset in prior["asset"].unique().to_list():
+            asset_fresh = fresh.filter(pl.col("asset") == asset)
+            keep = pl.col("asset") == asset
+            if len(asset_fresh):
+                keep &= pl.col("date") < asset_fresh["date"].min()
+            parts.append(prior.filter(keep).select(fresh.columns))
+    df = pl.concat(parts).sort(["asset", "date"])
+    df.write_parquet(ppath)
     # Farside restates cells in place for ~48h; keep append-only vintages so
     # the live era has true first-print flows (audit M-8). Pre-archive history
-    # is revised-values era by construction — documented limitation.
-    snap = df.with_columns(pl.lit(datetime.now(UTC)).alias("snapped_at_utc"))
+    # is revised-values era by construction — documented limitation. Only the
+    # freshly OBSERVED rows are snapped — never carried-forward prior data.
+    snap = fresh.with_columns(pl.lit(datetime.now(UTC)).alias("snapped_at_utc"))
     vpath = dest / "farside_vintages.parquet"
     if vpath.exists():
         snap = pl.concat([pl.read_parquet(vpath), snap], how="diagonal_relaxed")
     snap.write_parquet(vpath)
-    log.info("etf flows: %d rows (+vintage snapshot)", len(df))
+    log.info(
+        "etf flows: %d rows (%d fresh%s, +vintage snapshot)",
+        len(df), len(fresh), f", blocked: {','.join(blocked)}" if blocked else "",
+    )
     return df
 
 

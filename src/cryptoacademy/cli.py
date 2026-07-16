@@ -468,6 +468,13 @@ def daily_update() -> None:
         ("fng", config.RAW_DIR / "sentiment" / "fear_greed.parquet", "date", 48),
         ("onchain", config.RAW_DIR / "onchain" / "coinmetrics.parquet",
          "published_at_utc", 72),
+        # US-business-day cadence + D+1 12:00 UTC publication: worst legit age
+        # is ~68h (08:30 run after a Monday-holiday long weekend), so 96h
+        # never false-alarms and trips after ~4 consecutive blocked days. The
+        # per-run Telegram alert in download_etf_flows is the fast signal;
+        # this is the backstop.
+        ("etf_flows", config.RAW_DIR / "etf_flows" / "farside.parquet",
+         "published_at_utc", 96),
     ]:
         try:  # per-feed: one bad file must not abort the remaining checks
             if not path.exists():
